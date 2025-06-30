@@ -1,0 +1,73 @@
+//IDemuxer接口，定义 解封装器Demuxer的基本功能的抽象契约
+#pragma once
+
+// FFmpeg类型的前向声明，以避免在此处包含 庞大的头文件
+struct AVFormatContext;
+struct AVPacket;
+struct AVCodecParameters;
+struct AVRational;
+enum AVMediaType;//直接使用enum
+
+class IDemuxer {
+public:
+	// 虚析构函数对于接口*非常关键*，以确保 后继通过基类指针 删除对象时 资源能被正确清理
+	virtual ~IDemuxer() = default;//=default 告诉编译器为这个虚析构函数生成一个默认的标准实现
+
+	//
+	//返回值：
+	/**
+	 * @brief 打开媒体源（文件路径或者URL）
+	 * @param 
+	 * @return 成功返回true，失败返回false
+	 */
+	virtual bool open(const char* url) = 0;
+
+	/**
+	 * @brief 关闭媒体源、释放资源
+	 */
+	virtual void close() = 0;
+
+	/**
+	 * @brief 读取下一个数据包
+	 * @param packet 调用者提供的 AVPacket 结构体指针，用于接收数据
+	 * @return 成功返回0，文件结束返回AVERROR_EOF，其他错误则返回<0的数字
+	 */
+	virtual int readPacket(AVPacket* packet) = 0;
+
+	/**
+	 * @brief 获取底层的 AVFormatContext（可能用于获取更详细信息）
+	 * 注意：通常应谨慎暴露底层上下文，但有时有必要与其它FFmpeg组件交互
+	 * 为了更好的抽象，考虑移除这一接口
+	 * @return 指向 AVFormatContext 的指针。若未打开则为 nullptr
+	 */
+	virtual AVFormatContext* getFormatContext() const = 0;// const 表示该函数不能修改类内成员变量（除非变量是mutable的）
+
+	/**
+	 * @brief 查找指定媒体类型的流索引
+	 * @param type AVMEDIA_TYPE_VIDEO, AVMEDIA_TYPE_AUDIO, etc.
+	 * @return 流索引（>=0）,若未找到则返回 -1
+	 */
+	virtual int findStream(AVMediaType type) const = 0;
+
+	/**
+	 * @brief 获取指定流的编解码器参数
+	 * @param streamIndex 流的索引
+	 * @return 指向 AVCodecParameters 的指针，若索引无效则为 nullptr
+	 */
+	virtual AVCodecParameters* getCodecParameters(int streamIndex)const = 0;
+
+	/**
+	 * @brief 获取时长
+	 */
+	virtual double getDuration() const = 0;
+
+	/**
+	 * @brief 获取指定流的时间基 (time_base).
+	 * @param streamIndex 流的索引.
+	 * @return AVRational 结构体，表示时间基。若索引无效则返回 {0, 1}。
+	 */
+	virtual AVRational getTimeBase(int streamIndex) const = 0;
+	
+	//（其他通用解封装器的功能，如获取元数据等）
+	//virtual AVDictionary* getMetadata() const = 0;
+};

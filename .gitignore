@@ -1,0 +1,26 @@
+# CMake build files
+# 忽略所有在build目录下的文件
+/build/
+# 忽略CMake生成的本地用户文件
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+
+# Visual Studio
+# 忽略Visual Studio的解决方案和项目文件
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.user
+*.VC.db
+.vs/
+
+# Executables
+# 忽略可执行文件和库的二进制文件
+*.exe
+*.dll
+*.pdb
+*.obj
+*.ilk
+*.lib
