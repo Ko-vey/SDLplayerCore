@@ -1,8 +1,28 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "IVideoDecoder.h"
 
-//前向声明 FFmpeg类型，以避免在头文件中包含庞大的FFmpeg头文件
+//前向声明 FFmpeg 类型，避免在头文件中包含庞大的FFmpeg头文件
 //IVideoDecoder.h已经前向声明了 AVCodecParameters、AVPacket、AVFrame、AVPixelFormat、AVRational
 struct AVCodecContext;
 

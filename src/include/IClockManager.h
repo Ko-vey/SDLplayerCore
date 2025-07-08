@@ -1,10 +1,30 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "SDL2/SDL_audio.h"	// SDL_AudioDeviceID
 
-//外部时钟通常作为无音频时的备用，或者音频作为主参考
-//该枚举可以指导 ClockManager 内部如何选择 getMasterClockTime 的源
-//对于最小可行的播放器，该枚举甚至可以不用在接口暴露，而作为内部逻辑
+// 音频作为主参考，外部时钟作为无音频时的备用，
+// 该枚举可以指导 ClockManager 内部如何选择 getMasterClockTime 的源
+// 对于最小可行播放器，该枚举甚至可以不用在接口暴露，而作为内部逻辑
 enum class InitialMasterHint {
 	PREFER_AUDIO,//若有音频，优先用音频
 	PREFER_EXTERNAL//优先用外部时钟（如纯视频）

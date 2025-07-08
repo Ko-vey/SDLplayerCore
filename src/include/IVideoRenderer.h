@@ -1,10 +1,30 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include "IClockManager.h"//时钟管理器接口
 
 //FFmpeg类型的前向声明
-struct AVFrame;		//数据帧结构体（包含解码后的视频数据）
-enum AVPixelFormat;	//像素格式枚举
+struct AVFrame;		// 数据帧结构体（包含解码后的视频数据）
+enum AVPixelFormat;	// 像素格式枚举
 
 class IVideoRenderer {
 public:
@@ -56,7 +76,7 @@ public:
 
 	// 播放/暂停功能主要由 MediaPlayer 控制 IClockManager 来实现。
 	// IVideoRenderer 的 renderFrame 方法会根据 IClockManager 的状态（是否暂停，当前时间）
-	// 来决定如何处理帧。因此，IVideoRenderer 接口本身可能不需要显式的 play/pause 方法
+	// 来决定如何处理帧。因此，IVideoRenderer 接口本身不需要显式的 play/pause 方法
 	// 来控制渲染逻辑，因为其行为是时钟驱动的。
 	
 	// 若需要 特定的渲染器行为（例如暂停时显式特定图像），则可以添加。

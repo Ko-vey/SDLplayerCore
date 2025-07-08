@@ -1,17 +1,37 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include <string>
 
-//FFmpeg类型的前向声明，避免在接口中直接包含头文件
-struct AVCodecParameters;//编解码器参数结构体
-struct AVPacket;//数据包结构体
-struct AVFrame;//数据帧结构体
-enum AVPixelFormat;//像素格式枚举，用于getPixelFormat()
-struct AVRational;//FFmpeg中用于表示有理数的结构（如时间基准、帧率）
+// FFmpeg类型的前向声明
+struct AVCodecParameters;	// 编解码器参数结构体
+struct AVPacket;			// 数据包结构体
+struct AVFrame;				// 数据帧结构体
+enum AVPixelFormat;			// 像素格式枚举，用于getPixelFormat()
+struct AVRational;			// FFmpeg中用于表示有理数的结构（如时间基准、帧率）
 
 class IVideoDecoder {
 public:
-	//虚析构函数，确保派生类的正确清理
+	// 虚析构函数，确保派生类的正确清理
 	virtual ~IVideoDecoder() = default;
 
 	/**

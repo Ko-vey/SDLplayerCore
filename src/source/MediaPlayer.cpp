@@ -1,3 +1,23 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <fstream>      // 文件路径验证
 #include <stdexcept>    // std::runtime_error
 #include <chrono>       // SDL_Delay 或者 PacketQueue 超时
@@ -64,13 +84,12 @@ void MediaPlayer::init_components(const std::string& filepath) {
     m_audioFrameQueue = std::make_unique<FrameQueue>(MAX_AUDIO_FRAMES);
 
     m_clockManager = std::make_unique<ClockManager>();
-    m_clockManager->init(InitialMasterHint::PREFER_EXTERNAL);
+    m_clockManager->init(InitialMasterHint::PREFER_AUDIO);
 
     cout << "MediaPlayer: Queues and clock manager created." << endl;
 
     // 步骤 1: 初始化所有FFmpeg相关资源
     init_ffmpeg_resources(filepath);
-    m_clockManager->init(InitialMasterHint::PREFER_AUDIO);
 
     // 步骤 2: 初始化所有SDL相关资源 (渲染器)
     init_sdl_video_renderer();
@@ -124,7 +143,7 @@ void MediaPlayer::init_sdl_video_renderer() {
 
     // 创建并初始化一个具体的渲染器实例
     auto sdl_renderer = std::make_unique<SDLVideoRenderer>();
-    if (!sdl_renderer->init("TestPlayer", video_width, video_height,
+    if (!sdl_renderer->init("SDLplayerCore", video_width, video_height,
         m_videoDecoder->getPixelFormat(), m_clockManager.get())) {
         throw std::runtime_error("SDL Init Error: Failed to initialize SDL Video Renderer.");
     }
@@ -179,11 +198,11 @@ void MediaPlayer::start_threads() {
     // 启动视频解码线程
     if (videoStreamIndex != -1) {
         m_videoDecodeThread = SDL_CreateThread(video_decode_thread_entry, "VideoDecodeThread", this);
-        // 解码线程创建失败，但解复用线程已经启动！
-        // 必须在抛出异常前通知它退出
+        // 解码线程创建失败，但解复用线程已经启动！必须在抛出异常前通知它退出
         if (!m_videoDecodeThread) throw std::runtime_error("Thread Error: Could not create video decode thread.");
+        // 视频渲染线程 (m_videoRenderthread) 在 runMainLoop 中启动，不属于构造阶段
     }
-    // 启动音频解码线程 (如果音频流存在)
+    // 启动音频解码线程
     if (audioStreamIndex != -1) {
         m_audioDecodeThread = SDL_CreateThread(audio_decode_thread_entry, "AudioDecodeThread", this);
         if (!m_audioDecodeThread) throw std::runtime_error("Thread Error: Could not create audio decode thread.");
@@ -191,9 +210,7 @@ void MediaPlayer::start_threads() {
         if (!m_audioRenderThread) throw std::runtime_error("Thread Error: Failed to create audio render thread.");
     }
 
-    // 注意: 视频渲染线程 (m_videoRenderthread) 是在 runMainLoop 中启动的，不属于构造阶段
-
-    cout << "MediaPlayer: Demux, video decode, and audio decode threads started." << endl;
+    cout << "MediaPlayer: Demux, video decode, and audio decode/render threads started." << endl;
 }
 
 MediaPlayer::~MediaPlayer() {
@@ -838,7 +855,7 @@ int MediaPlayer::video_render_func() {
             }
         }
     }
-    cout << "MediaPlayer: Video render thread finished. Total frames rendered: " << show_frame_cnt() << endl;
+    cout << "MediaPlayer: Video render thread finished. Total frames rendered: " << get_frame_cnt() << endl;
     return 0;
 }
 

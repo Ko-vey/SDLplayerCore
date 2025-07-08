@@ -1,4 +1,22 @@
-// FFmpegDemuxer 类的具体实现
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 
 #include "../include/FFmpegDemuxer.h"
 #include <iostream> // 用于错误信息
@@ -6,9 +24,9 @@
 using namespace std;
 
 FFmpegDemuxer::FFmpegDemuxer() {
-	//构造函数：如果需要，在此初始化 类的成员
-	//FFmpeg的全局初始化（如avformat_network_init()等）
-	// 可能在其它地方完成，也许在每次应用运行时只执行一次
+	// 构造函数：如果需要，在此初始化 类的成员
+	// FFmpeg的全局初始化（如avformat_network_init()等）
+	// 可能在其它地方完成，在每次应用运行时只执行一次
 }
 
 FFmpegDemuxer::~FFmpegDemuxer() {
@@ -76,7 +94,6 @@ int FFmpegDemuxer::readPacket(AVPacket* packet) {
 	if (!pFormatCtx) {
 		return AVERROR(EINVAL);//无效状态，没有打开
 	}
-	//av_packet_unref(packet);//确保packet数据包在读取前是干净的？通常是调用者的工作
 	return av_read_frame(pFormatCtx, packet);//读取下一个 frame/packet
 }
 

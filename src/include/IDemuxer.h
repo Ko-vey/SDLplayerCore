@@ -1,4 +1,23 @@
-//IDemuxer接口，定义 解封装器Demuxer的基本功能的抽象契约
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 // FFmpeg类型的前向声明，以避免在此处包含 庞大的头文件
@@ -13,8 +32,6 @@ public:
 	// 虚析构函数对于接口*非常关键*，以确保 后继通过基类指针 删除对象时 资源能被正确清理
 	virtual ~IDemuxer() = default;//=default 告诉编译器为这个虚析构函数生成一个默认的标准实现
 
-	//
-	//返回值：
 	/**
 	 * @brief 打开媒体源（文件路径或者URL）
 	 * @param 

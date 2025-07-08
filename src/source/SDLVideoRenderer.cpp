@@ -1,3 +1,23 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "../include/SDLVideoRenderer.h"
 #include <algorithm> // For std::max
 #include <iostream>
@@ -126,7 +146,7 @@ bool SDLVideoRenderer::renderFrame(AVFrame* frame) {
 
     // 检查延时是否过大，过大则认为时钟不同步，重置延时
     if (delay > AV_NOSYNC_THRESHOLD || delay < -AV_NOSYNC_THRESHOLD) {
-        // 时钟差距过大，可能出错了，重置视频时钟
+        // 时钟差距过大，可能出错了，重置时钟
         std::cout << "VideoRenderer: Clock difference is too large (" << delay << "s), resetting delay." << std::endl;
         delay = 0;
     }

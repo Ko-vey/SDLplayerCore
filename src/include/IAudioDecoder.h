@@ -1,16 +1,36 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
-#include "IClockManager.h"//时钟管理器接口；音频解码出的帧的PTS用于后续更新时钟
+#include "IClockManager.h"	// 时钟管理器接口；音频解码出的帧的PTS用于后续更新时钟
 
 // FFmpeg类型的前向声明
-struct AVCodecParameters;//编解码器参数结构体
-struct AVPacket;		 //数据包结构体
-struct AVFrame;		     //数据帧结构体
-enum AVSampleFormat;	 //采样格式枚举
-struct AVRational;		 //有理数结构体（用于时间基准）
+struct AVCodecParameters;	// 编解码器参数结构体
+struct AVPacket;			// 数据包结构体
+struct AVFrame;				// 数据帧结构体
+enum AVSampleFormat;		// 采样格式枚举
+struct AVRational;			// 有理数结构体（用于时间基准）
 
 // 对于 getChannelLayout()，AVChannelLayout的定义比较复杂，
-// 最小可行阶段可能直接用 getChannels() 更简单。
+// 最小可行阶段直接用 getChannels() 更简单。
 // 若确实需要更精确的声道布局，可能需要包含 <libavutil/channel_layout.h>
 // 或者使用其 underlying type下层类型（通常是 uint64_t)
 // 为简单起见，最小可行播放器中可能更专注声道数。

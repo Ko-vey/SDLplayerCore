@@ -1,3 +1,23 @@
+/*
+ * SDLplayerCore - An audio/video player core.
+ * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
+ *
+ * This file is part of SDLplayerCore.
+ *
+ * SDLplayerCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 
 #include <string>
@@ -41,11 +61,12 @@ extern "C" {
 
 class MediaPlayer {
 private:
+    // 内部状态标志
     std::atomic<bool> m_quit;   //退出标志
     std::atomic<bool> m_pause;  //暂停标志
     std::mutex m_pause_mutex;
     std::condition_variable m_pause_cond;
-
+    // 内部组件
     std::unique_ptr<PacketQueue> m_videoPacketQueue;    // 视频包队列
     std::unique_ptr<FrameQueue> m_videoFrameQueue;      // 视频帧队列
     std::unique_ptr<PacketQueue> m_audioPacketQueue;    // 音频包队列
@@ -59,23 +80,24 @@ private:
     std::unique_ptr<IAudioRenderer> m_audioRenderer;    // 音频渲染器
     std::unique_ptr<IClockManager> m_clockManager;      // 时钟管理器
 
-    // 用于 解码 和 转换 的 FFmpeg 变量
+    // 内部状态变量
     int videoStreamIndex = -1;                  // 解复用器找到的视频流索引
     int audioStreamIndex = -1;                  // 音频流索引
-    
+    // 其他变量
+    int frame_cnt = 0;                          // 帧计数器
+
     AVPacket* m_decodingVideoPacket = nullptr;  // 用于 视频解码 的 Packet 
     AVFrame* m_renderingVideoFrame = nullptr;   // 用于 视频渲染 的 Frame
     AVPacket* m_decodingAudioPacket = nullptr;  // 用于 音频解码 的 Packet
     AVFrame* m_renderingAudioFrame = nullptr;   // 用于 音频渲染 的 Frame
 
-    // SDL 线程
+    // 内部线程句柄
     SDL_Thread* m_demuxThread = nullptr;        // 解复用线程
     SDL_Thread* m_videoDecodeThread = nullptr;  // 视频解码线程
     SDL_Thread* m_videoRenderthread = nullptr;  // 视频渲染线程
     SDL_Thread* m_audioDecodeThread = nullptr;  // 音频解码线程
     SDL_Thread* m_audioRenderThread = nullptr;  // 音频渲染线程
 
-    int frame_cnt = 0;                          // 帧计数器
 public:
     MediaPlayer(const string& filepath);
     virtual ~MediaPlayer();
@@ -85,8 +107,10 @@ public:
     MediaPlayer& operator=(const MediaPlayer& rhs) = delete;
 
     int runMainLoop();      // 主循环启动函数
+    int get_frame_cnt() const { return frame_cnt; };
+
 private:
-    //线程入口函数，分为静态入口函数 和 实际逻辑
+    // 线程入口函数，分为静态入口函数 和 实际逻辑
     static int demux_thread_entry(void* opaque);
     int demux_thread_func();
     static int video_decode_thread_entry(void* opaque);
@@ -98,12 +122,11 @@ private:
     static int audio_render_thread_entry(void* opaque);
     int audio_render_func();
 
-// 暂时公开，方便调试；当runMainLoop可以处理所有事件时，后继可改为private
-public: 
-    int handle_event(const SDL_Event& event);
-    int show_frame_cnt() const{ return frame_cnt; };
-    bool is_quit_requested() const { return m_quit; }
 private:
+    // 内部使用的辅助函数和线程入口
+    int handle_event(const SDL_Event& event);
+    bool is_quit_requested() const { return m_quit; }
+
     // 初始化方法的辅助函数
     void init_components(const string& filepath);
     void init_ffmpeg_resources(const string& filepath);
