@@ -23,7 +23,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
-#include <chrono>	// ¸ú×ÙÊ±¼ä std::chrono::milliseconds
+#include <chrono>	// std::chrono::milliseconds
 
 //AVPacket ºÍ AVFrame
 extern "C" {

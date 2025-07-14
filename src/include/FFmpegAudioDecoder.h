@@ -33,7 +33,7 @@ class FFmpegAudioDecoder : public IAudioDecoder {
 private:
     AVCodecContext* m_codecContext = nullptr;
     const AVCodec* m_codec = nullptr;
-    IClockManager* m_clockManager = nullptr; // 目前未使用，但为保持接口一致性而保留
+    IClockManager* m_clockManager = nullptr;
     AVRational m_timeBase = { 0, 1 };
 
 public:

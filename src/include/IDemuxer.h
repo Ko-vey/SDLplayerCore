@@ -20,12 +20,12 @@
 
 #pragma once
 
-// FFmpeg类型的前向声明，以避免在此处包含 庞大的头文件
+// FFmpeg类型的前向声明
 struct AVFormatContext;
 struct AVPacket;
 struct AVCodecParameters;
 struct AVRational;
-enum AVMediaType;//直接使用enum
+enum AVMediaType;	// enum
 
 class IDemuxer {
 public:

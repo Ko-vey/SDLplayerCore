@@ -33,7 +33,7 @@ struct AVRational;			// 有理数结构体（用于时间基准）
 // 最小可行阶段直接用 getChannels() 更简单。
 // 若确实需要更精确的声道布局，可能需要包含 <libavutil/channel_layout.h>
 // 或者使用其 underlying type下层类型（通常是 uint64_t)
-// 为简单起见，最小可行播放器中可能更专注声道数。
+// 为简易起见，本播放器中更专注于声道数。
 
 class IAudioDecoder {
 public:
@@ -95,7 +95,7 @@ public:
 	// 可选： 获取声道布局（更详细的声道信息）
 	//virtual uint64_t getChannelLayout() const = 0;
 
-	// 可选：获取每个采样点的字节数或每个完整采样帧的字节数
+	// 获取每个采样点的字节数或每个完整采样帧的字节数
 	//（通常可以从 sample_format 和 channels 推断出来，或者由音频渲染器根据这些参数计算）
 	virtual int getBytesPerSampleFrame() const = 0;
 };

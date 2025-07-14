@@ -22,8 +22,7 @@
 
 #include "IVideoDecoder.h"
 
-//前向声明 FFmpeg 类型，避免在头文件中包含庞大的FFmpeg头文件
-//IVideoDecoder.h已经前向声明了 AVCodecParameters、AVPacket、AVFrame、AVPixelFormat、AVRational
+// 前向声明 FFmpeg 类型，避免在头文件中包含庞大的FFmpeg头文件
 struct AVCodecContext;
 
 class FFmpegVideoDecoder : public IVideoDecoder {

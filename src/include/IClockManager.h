@@ -26,8 +26,8 @@
 // 该枚举可以指导 ClockManager 内部如何选择 getMasterClockTime 的源
 // 对于最小可行播放器，该枚举甚至可以不用在接口暴露，而作为内部逻辑
 enum class InitialMasterHint {
-	PREFER_AUDIO,//若有音频，优先用音频
-	PREFER_EXTERNAL//优先用外部时钟（如纯视频）
+	PREFER_AUDIO,	//若有音频，优先用音频
+	PREFER_EXTERNAL	//优先用外部时钟（如纯视频）
 };
 
 class IClockManager {
@@ -79,7 +79,7 @@ public:
 
 	//外部时钟通常由系统时间驱动，setExternalClock 可能不直接设置一个pts，
 	//而是校准一个起始点。getExternalClockTime 会返回（当前系统时间 - 播放开始的系统时间点）。
-	//为了简化，可以让setExternalClock更像其它setters，但这取决于具体实现。
+	//为了简化，可以让setExternalClock更类似其它setters，但这取决于具体实现。
 	//对于最小可行版本，可以简化为只在内部使用，无需set接口，get接口返回基于播放开始的流逝时间。
 	//或者保留一个简单的set来同步起始点。
 

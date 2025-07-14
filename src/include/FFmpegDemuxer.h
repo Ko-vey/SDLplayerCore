@@ -29,24 +29,22 @@ using namespace std;
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>	// AVCodecParameters, AVMediaType
-#include <libavutil/dict.h>		// 若还需要加入元数据功能
-#include <libavutil/time.h>		// AV_TIME_BASE定义在这里
+#include <libavutil/dict.h>		// 元数据功能
+#include <libavutil/time.h>		// AV_TIME_BASE
 }
 
-class FFmpegDemuxer : public IDemuxer {//继承接口
+class FFmpegDemuxer : public IDemuxer {
 private:
 	AVFormatContext* pFormatCtx = nullptr;
 	string m_url;
 	int m_videoStreamIndex = -1;
 	int m_audioStreamIndex = -1;
-	//其它需要缓存的信息
 
 public:
 	FFmpegDemuxer();
-	//重写 虚析构函数
 	virtual ~FFmpegDemuxer() override;
 
-	//重写并实现所有的继承于IDemuxer的纯虚函数
+	// IDemuxer 接口实现
 	bool open(const char* url) override;
 	void close() override;
 	int readPacket(AVPacket* packet) override;
