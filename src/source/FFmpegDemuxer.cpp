@@ -152,7 +152,7 @@ double FFmpegDemuxer::getDuration() const {
 	//1、检查 AVFormatContext 是否有效（pFormatCtx是在open()方法中初始化的）
 	if (pFormatCtx) {
 		//2、AVFormatContext::duration 字段存储了时长信息。
-		//	这个值以 AV_TIEM_BASE 为单位（通常为微妙，1/1,000,000秒）。
+		//	这个值以 AV_TIEM_BASE 为单位（通常为微秒，1/1,000,000秒）。
 		//	若时长未知，pFormatCtx->duration 可能是 AV_NOPTS_VALUE。
 		if (pFormatCtx->duration != AV_NOPTS_VALUE) {
 			//3、将时长从 AV_TIME_BASE 单位转为秒。

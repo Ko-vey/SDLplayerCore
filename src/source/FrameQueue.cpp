@@ -19,7 +19,7 @@
  */
 
 #include "../include/FrameQueue.h"
-#include <iostream>//调试输出
+#include <iostream>
 
 FrameQueue::FrameQueue(size_t max_queue_size):max_size(max_queue_size) {}
 
@@ -116,7 +116,7 @@ bool FrameQueue::pop(AVFrame* frame, int timeout_ms) {
 	}
 
 	//释放src_frame本身（它在push时分配，其数据现在由外部frame引用）
-	av_frame_free(&src_frame);//释放我们自己管理的那个副本的容器
+	av_frame_free(&src_frame);//释放开发者自己管理的副本的容器
 
 	// 通知一个可能在等待的生产者，队列中有空间了
 	cond_producer.notify_one();

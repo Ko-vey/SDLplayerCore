@@ -19,7 +19,7 @@
  */
 
 #include "../include/PacketQueue.h"
-#include <iostream>//调试输出
+#include <iostream>
 
 PacketQueue::PacketQueue(size_t max_queue_size):max_size(max_queue_size) {}
 
@@ -116,7 +116,7 @@ bool PacketQueue::pop(AVPacket* packet, int timeout_ms) {
 	}
 
 	//释放src_pkt本身（它在push时分配，其数据现在由外部packet引用）
-	av_packet_free(&src_pkt);//释放我们自己管理的那个副本的容器
+	av_packet_free(&src_pkt);//释放开发者自己管理的副本的容器
 
 	// 通知一个可能在等待的生产者，队列中有空间了
 	cond_producer.notify_one();

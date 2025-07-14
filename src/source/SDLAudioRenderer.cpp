@@ -46,8 +46,8 @@ bool SDLAudioRenderer::init(int sampleRate, int channels, AVSampleFormat decoder
     SDL_AudioSpec wanted_spec;
     SDL_zero(wanted_spec);
     wanted_spec.freq = sampleRate;
-    wanted_spec.format = AUDIO_S16SYS; // 我们目标输出为16位有符号音频
-    wanted_spec.channels = channels > 2 ? 2 : channels; // 为简单起见，最多支持立体声
+    wanted_spec.format = AUDIO_S16SYS; // 目标输出为16位有符号音频
+    wanted_spec.channels = channels > 2 ? 2 : channels; // 为简易起见，最多支持立体声
     wanted_spec.silence = 0;
     wanted_spec.samples = 1024; // 合理的缓冲区大小
     wanted_spec.callback = nullptr; // 使用Push模式 (SDL_QueueAudio)

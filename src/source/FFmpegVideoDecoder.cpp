@@ -19,13 +19,12 @@
  */
 
 #include "../include/FFmpegVideoDecoder.h"
-#include <iostream>	//调试输出std::cerr，std::cout
+#include <iostream>	// std::cerr，std::cout
 
-// 包含 FFmpeg C语言头文件
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavutil/error.h>	// 用于 av_err2str
-//#include <libavutil/opt.h>		//如果需要设置解码器选项（如线程数）
+#include <libavutil/error.h>		// av_err2str
+//#include <libavutil/opt.h>		// 设置解码器选项（如线程数）
 }
 
 using namespace std;
@@ -114,7 +113,7 @@ int FFmpegVideoDecoder::decode(AVPacket* packet, AVFrame** frame) {
 	// 此时仍然应该尝试接收帧。
 	// 如果 ret == AVERROR_EOF，表示解码器已经被冲洗，不能再发送新的包（除非是nullptr）。
 	// 如果 packet 非空但发送返回 AVERROR_EOF，这通常是个错误用法。
-	// 但接口设计是先send再receive，所以我们让receive来处理最终状态。
+	// 但接口设计是先send再receive，所以让receive来处理最终状态。
 
 	//步骤 2：从解码器接收解码后的帧
 	AVFrame* decoded_frame = av_frame_alloc();
@@ -147,7 +146,7 @@ int FFmpegVideoDecoder::decode(AVPacket* packet, AVFrame** frame) {
 
 void FFmpegVideoDecoder::close() {
 	if (m_codecContext) {
-		avcodec_free_context(&m_codecContext);	// 然后释放上下文内存，m_codecContext 会被置为 NULL
+		avcodec_free_context(&m_codecContext);	// 释放上下文内存，m_codecContext 会被置为 NULL
 		cout << "FFmpegVideoDecoder::close: Codec context closed and freed." << endl;
 	}
 }
@@ -175,7 +174,7 @@ AVRational FFmpegVideoDecoder::getTimeBase()const {
 AVRational FFmpegVideoDecoder::getFrameRate()const {
 	if (m_codecContext) {
 		// AVCodecContext->framerate 是解码器认为的帧率，
-		// 它应该是从 AVStream->avg_frame_rate 或 AVStream->r_frame_rate 初始化得到的。
+		// 它应当从 AVStream->avg_frame_rate 或 AVStream->r_frame_rate 初始化得到的。
 		return m_codecContext->framerate;
 	}
 	return { 0,1 };	// 返回一个表示无效或未初始化的帧率

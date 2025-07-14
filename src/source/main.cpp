@@ -23,11 +23,13 @@
 #include <stdexcept>
 #include <memory>
 #include <vector>
-#include <limits> // 用于 std::numeric_limits
+#include <limits> // std::numeric_limits
 
 #include "../include/MediaPlayer.h"
 
-// 函数：在程序退出前暂停，等待用户输入，防止控制台窗口闪退
+/**
+* @brief 在程序退出前暂停，等待用户输入，防止控制台窗口闪退
+*/
 void pause_before_exit() {
     std::cout << "\nPress Enter to exit..." << std::endl;
     // 清空输入缓冲区，并等待用户按回车

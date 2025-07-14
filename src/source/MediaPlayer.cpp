@@ -130,7 +130,7 @@ void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
     cout << "MediaPlayer: FFmpeg resources initialized successfully." << endl;
 }
 
-// SDL视频渲染器的初始化方法
+// 初始化SDL视频渲染器
 void MediaPlayer::init_sdl_video_renderer() {
     cout << "MediaPlayer: Initializing SDL renderer..." << endl;
 
@@ -162,7 +162,7 @@ void MediaPlayer::init_sdl_video_renderer() {
     cout << "MediaPlayer: SDL renderer initialized successfully." << endl;
 }
 
-// SDL音频渲染器的初始化方法
+// 初始化SDL音频渲染器
 void MediaPlayer::init_sdl_audio_renderer() {
     if (audioStreamIndex == -1) {
         cout << "MediaPlayer: No audio stream found. Skipping audio renderer initialization." << endl;
@@ -222,7 +222,7 @@ MediaPlayer::~MediaPlayer() {
 int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
     cout << "MediaPlayer: Initializing Demuxer and Decoders for: " << filepath << endl;
 
-    // 文件路径验证（基础）
+    // 文件路径验证
     if (filepath.empty()) {
         cerr << "FFmpeg Init Error: Filepath is empty." << endl;
         return -1;
@@ -299,7 +299,7 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
             if (!m_audioDecoder->init(pAudioCodecParams, audioTimeBase, m_clockManager.get())) {
                 cerr << "MediaPlayer Warning: Failed to initialize audio decoder. Continuing without audio." << endl;
                 m_audioDecoder.reset(); // 初始化失败，释放解码器
-                audioStreamIndex = -1; // 初始化失败，将索引置为无效
+                audioStreamIndex = -1; // 将索引置为无效
             }
             else {
                 cout << "MediaPlayer: Audio decoder initialized successfully." << endl;
@@ -314,7 +314,6 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
 
     if (dec_width <= 0 || dec_height <= 0) {
         cerr << "MediaPlayer Error: Decoder returned invalid dimensions (" << dec_width << "x" << dec_height << ")." << endl;
-        //m_videoDecoder->close();//如果初始化失败或者在析构函数中，已经被unique_ptr处理
         m_demuxer->close();
         m_demuxer.reset();
         return -1;
@@ -553,7 +552,7 @@ void MediaPlayer::cleanup() {
 
     // 3. 释放SDL渲染器
     // 销毁Texture, Renderer, Window
-    // 依赖FFmpeg信息，必须先于FFmpeg清理
+    // SDL渲染器依赖FFmpeg信息，必须先于FFmpeg清理
     if (m_audioRenderer) {
         m_audioRenderer.reset();
         cout << "MediaPlayer: Audio Renderer cleaned up." << endl;
@@ -714,7 +713,7 @@ int MediaPlayer::video_decode_func() {
                         if (!m_videoFrameQueue->push(decoded_frame)) { // FrameQueue::push 会 ref
                             cerr << "MediaPlayer VideoDecodeThread: Failed to push flushed frame to frame queue." << endl;
                         }
-                        av_frame_free(&decoded_frame); // <--- 释放 decode() 分配的 shell
+                        av_frame_free(&decoded_frame); // 释放 decode() 分配的 shell
                         // decoded_frame 现在无效
                     }
                     flush_ret = m_videoDecoder->decode(nullptr, &decoded_frame); // 尝试获取更多
