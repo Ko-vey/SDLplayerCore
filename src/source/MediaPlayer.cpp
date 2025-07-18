@@ -424,6 +424,7 @@ int MediaPlayer::runMainLoop() {
     cout << "MediaPlayer: Starting main loop (event handling and video render trigger)." << endl;
 
     // 启动视频渲染线程 (确保在循环前启动)
+    // 视频渲染线程在此启动（而不是构造阶段），是为了将“对象构建/数据准备”与“对象运行/用户交互”分离
     m_videoRenderthread = SDL_CreateThread(video_render_thread_entry, "VideoRenderThread", this);
     if (!m_videoRenderthread) {
         cerr << "MediaPlayer Error: Could not create video render thread." << endl;
