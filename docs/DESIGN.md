@@ -386,7 +386,7 @@
 
 下图展示了从用户触发暂停到恢复播放的完整多线程交互过程。
 
-![暂停播放机制-线程交互图](assets/pic7-pause_resume_thread.svg)
+![暂停播放机制-线程交互图](assets/pic8-pause_resume_thread.svg)
 
 **交互关键点**
 
