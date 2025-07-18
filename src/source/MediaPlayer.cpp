@@ -521,16 +521,12 @@ void MediaPlayer::cleanup() {
     if (m_audioFrameQueue) m_audioFrameQueue->signal_eof();
 
     // 2、等待所有线程结束
-    // 先等待消费者线程，再等待生产者线程
-    if (m_videoRenderthread) {
-        cout << "MediaPlayer: Waiting for refresh thread to finish..." << endl;
-        SDL_WaitThread(m_videoRenderthread, nullptr);
-        cout << "MediaPlayer: Refresh thread finished." << endl;
-    }
-    if (m_audioRenderThread) {
-        cout << "MediaPlayer: Waiting for audio render thread to finish..." << endl;
-        SDL_WaitThread(m_audioRenderThread, nullptr);
-        cout << "MediaPlayer: Audio render thread finished." << endl;
+    // 先等待生产者线程，再等待消费者线程，避免潜在死锁
+    cout << "MediaPlayer: Waiting for threads to finish..." << endl;
+    if (m_demuxThread) {
+        cout << "MediaPlayer: Waiting for demux thread to finish..." << endl;
+        SDL_WaitThread(m_demuxThread, nullptr);
+        cout << "MediaPlayer: Demux thread finished." << endl;
     }
     if (m_videoDecodeThread) {
         cout << "MediaPlayer: Waiting for video decode thread to finish..." << endl;
@@ -542,10 +538,15 @@ void MediaPlayer::cleanup() {
         SDL_WaitThread(m_audioDecodeThread, nullptr);
         cout << "MediaPlayer: Audio decode thread finished." << endl;
     }
-    if (m_demuxThread) {
-        cout << "MediaPlayer: Waiting for demux thread to finish..." << endl;
-        SDL_WaitThread(m_demuxThread, nullptr);
-        cout << "MediaPlayer: Demux thread finished." << endl;
+    if (m_videoRenderthread) {
+        cout << "MediaPlayer: Waiting for refresh thread to finish..." << endl;
+        SDL_WaitThread(m_videoRenderthread, nullptr);
+        cout << "MediaPlayer: Refresh thread finished." << endl;
+    }
+    if (m_audioRenderThread) {
+        cout << "MediaPlayer: Waiting for audio render thread to finish..." << endl;
+        SDL_WaitThread(m_audioRenderThread, nullptr);
+        cout << "MediaPlayer: Audio render thread finished." << endl;
     }
     cout << "MediaPlayer: All threads have been joined. Cleaning up resources..." << endl;
     // 线程已全部停止，按逻辑顺序释放所有资源
