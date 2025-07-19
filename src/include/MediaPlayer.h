@@ -110,7 +110,7 @@ public:
     int get_frame_cnt() const { return frame_cnt; };
 
 private:
-    // 线程入口函数，分为静态入口函数 和 实际逻辑
+    // 线程入口函数，分为 静态入口 和 实际逻辑
     static int demux_thread_entry(void* opaque);
     int demux_thread_func();
     static int video_decode_thread_entry(void* opaque);
@@ -123,18 +123,16 @@ private:
     int audio_render_func();
 
 private:
-    // 内部使用的辅助函数和线程入口
+    // 事件处理
     int handle_event(const SDL_Event& event);
-    bool is_quit_requested() const { return m_quit; }
-
-    // 初始化方法的辅助函数
+    // 构造和初始化的辅助函数
     void init_components(const string& filepath);
     void init_ffmpeg_resources(const string& filepath);
     int init_demuxer_and_decoders(const string& filepath);
     void init_sdl_video_renderer();
     void init_sdl_audio_renderer();
     void start_threads();
-    // 清理资源的辅助方法
+    // 析构和清理资源的辅助函数
     void cleanup_ffmpeg_resources();
     void cleanup();
 };
