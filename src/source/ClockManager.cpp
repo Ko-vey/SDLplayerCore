@@ -83,7 +83,7 @@ double ClockManager::getMasterClockTime() {
     return getExternalClockTime();
 }
 
-void ClockManager::setVideoClock(double pts, double duration) {
+void ClockManager::setVideoClock(double pts) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_video_clock_time = pts;
 }

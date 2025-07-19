@@ -28,6 +28,7 @@
 class ClockManager : public IClockManager {
 public:
     ClockManager();
+    // 让编译器的默认析构函数清理所有基本类型成员
     virtual ~ClockManager() = default;
 
     // 实现 IClockManager 接口
@@ -40,7 +41,7 @@ public:
     double getAudioClockTime() override;
     void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond, bool hasAudioStream) override;
 
-    void setVideoClock(double pts, double duration) override;
+    void setVideoClock(double pts) override;
     double getVideoClockTime() override;
 
     double getExternalClockTime() override;

@@ -69,7 +69,7 @@ public:
 	* @param pts 视频帧的显示时间戳。
 	* @param duration 视频帧的持续时间（可选，可用于更平滑的视频时钟）。
 	*/
-	virtual void setVideoClock(double pts, double duration = 0.0) = 0;
+	virtual void setVideoClock(double pts) = 0;
 
 	/**
 	* @brief 获取视频时钟的当前时间（单位：秒）
