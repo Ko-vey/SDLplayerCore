@@ -30,39 +30,46 @@ ClockManager::ClockManager() :
     m_master_hint(InitialMasterHint::PREFER_AUDIO) {}
 
 void ClockManager::init(InitialMasterHint hint) {
+    reset();
+
     std::lock_guard<std::mutex> lock(m_mutex);
     m_master_hint = hint;
-    reset();
 }
 
 void ClockManager::reset() {
-    // 假定锁由调用者（init）持有或在内部完成
-    m_video_clock_time = 0.0;
-    m_audio_clock_time = 0.0;
-    m_paused = false;
-    m_start_time = SDL_GetTicks64(); // 获取自SDL初始化以来的毫秒数
-    m_paused_at = 0;
-    std::cout << "ClockManager initialized/reset." << std::endl;
-}
-
-void ClockManager::close() {
     std::lock_guard<std::mutex> lock(m_mutex);
+
     m_video_clock_time = 0.0;
     m_audio_clock_time = 0.0;
-    m_start_time = 0;
+
+    // 重置外部时钟基准
+    m_start_time = SDL_GetTicks64(); // 获取自SDL初始化以来的毫秒数
+    
     m_paused_at = 0;
     m_paused = false;
-    m_master_hint = InitialMasterHint::PREFER_AUDIO; // 重置 hint
-    std::cout << "ClockManager closed." << std::endl;
+
+    // 恢复到默认主时钟
+    m_master_hint = InitialMasterHint::PREFER_AUDIO;
+
+    // 重置音频硬件参数相关的状态
+    m_has_audio_stream = false;
+    m_audio_device_id = 0;
+    m_audio_bytes_per_second = 0;
+    
+    std::cout << "ClockManager reset." << std::endl;
 }
 
 double ClockManager::getExternalClockTime() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    Uint64 now;
     if (m_paused) {
-        return (double)(m_paused_at - m_start_time) / 1000.0;
+        now = m_paused_at;
     }
     else {
-        return (double)(SDL_GetTicks64() - m_start_time) / 1000.0;
+        now = SDL_GetTicks64();
     }
+    return (double)(now - m_start_time) / 1000.0;
 }
 
 // 实现主时钟的选择逻辑
@@ -154,5 +161,6 @@ void ClockManager::resume() {
 }
 
 bool ClockManager::isPaused() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_paused;
 }

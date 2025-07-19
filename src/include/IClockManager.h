@@ -110,9 +110,4 @@ public:
 	* @brief 重置时钟状态
 	*/
 	virtual void reset() = 0;
-
-	/**
-	* @brief 关闭并清理时钟管理器资源。
-	*/
-	virtual void close() = 0;
 };
