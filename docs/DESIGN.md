@@ -478,7 +478,7 @@
 
 因此，在播放器主清理函数中，线程的 `join` (或 `SDL_WaitThread`) 顺序必须遵循数据处理的流水线方向。
 
-![顺着数据流顺序停止线程](assets/pic9-shutdown_thread_join_order.svg)
+![停止线程的顺序-示意流程图-顺着数据流](assets/pic9-shutdown_thread_join_order.svg)
 
 - **解封装线程**：作为顶级生产者，最先被 `join`。
 - **解码线程**：作为中间的消费者和生产者，在其后被 `join`。
@@ -490,7 +490,7 @@
 
 此顺序通常与数据流的方向相反。
 
-![沿着逆向依赖链释放资源](assets/pic10-shutdown_resource_release_order.svg)
+![释放资源的顺序-示意流程图-从依赖链底部逆流而上](assets/pic10-shutdown_resource_release_order.svg)
 
 - **渲染器**: 首先被释放。例如 `SDL_Texture` 和 `SDL_Renderer`，它们依赖于解码器提供的视频帧格式信息。
 - **解码器**: 其次被释放。解码器上下文 (`AVCodecContext`) 依赖于从解封装器获取的编解码器参数 (`AVCodecParameters`)。
