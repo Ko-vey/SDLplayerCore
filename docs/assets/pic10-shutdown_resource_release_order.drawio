@@ -1,0 +1,37 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram name="第 1 页" id="GpP5oRyJLSfD28GxHx2r">
+    <mxGraphModel dx="668" dy="483" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="fxyzi0oR7Pu5cGy2F8m_-1" value="渲染器&#xa;（SDL Renderer/Texture）" style="whiteSpace=wrap;strokeWidth=2;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="80" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="fxyzi0oR7Pu5cGy2F8m_-2" value="解码器&#xa;（FFmpeg Decoders）" style="whiteSpace=wrap;strokeWidth=2;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="330" y="80" width="201" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="fxyzi0oR7Pu5cGy2F8m_-3" value="解封装器&#xa;（FFmpeg Demuxer）" style="whiteSpace=wrap;strokeWidth=2;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="585" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="fxyzi0oR7Pu5cGy2F8m_-4" value="数据队列与时钟&#xa;（Queues &amp; Clock）" style="whiteSpace=wrap;strokeWidth=2;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="840" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="fxyzi0oR7Pu5cGy2F8m_-5" value="" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;rounded=0;" parent="1" source="fxyzi0oR7Pu5cGy2F8m_-1" target="fxyzi0oR7Pu5cGy2F8m_-2" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fxyzi0oR7Pu5cGy2F8m_-6" value="" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;rounded=0;" parent="1" source="fxyzi0oR7Pu5cGy2F8m_-2" target="fxyzi0oR7Pu5cGy2F8m_-3" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fxyzi0oR7Pu5cGy2F8m_-7" value="" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;rounded=0;" parent="1" source="fxyzi0oR7Pu5cGy2F8m_-3" target="fxyzi0oR7Pu5cGy2F8m_-4" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
