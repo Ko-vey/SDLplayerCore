@@ -134,7 +134,7 @@ bool SDLVideoRenderer::renderFrame(AVFrame* frame) {
     }
 
     // 更新视频时钟
-    m_clock_manager->setVideoClock(pts, duration);
+    m_clock_manager->setVideoClock(pts);
 
     // 计算视频时钟与主时钟的差值（即延时）
     double delay = pts - m_clock_manager->getMasterClockTime();
