@@ -2,43 +2,29 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Consumer as VideoDecodeThread
+    participant Consumer as DecodeThread
     participant Queue as PacketQueue
-    participant Lock as std::unique_lock
-    participant Condition as cond_consumer
+    participant Producer as DemuxThread
 
-    Consumer->>Queue: pop(packet, 100)
-    activate Queue
-    Queue->>Lock: lock(mutex)
-    activate Lock
-    Queue->>Queue: 循环检查: while (queue.empty() && !eof_signaled)
-    note over Queue: 条件为真，准备等待
-    Queue->>Condition: wait_for(lock, 100ms)
-    note over Condition: 原子性地释放锁并开始等待
-    deactivate Lock
+    Consumer->>+Queue: pop(100ms_timeout)
+    note over Queue: 加锁后检查，发现队列为空
 
-    alt 等待超时 (Timeout)
-        Condition-->>Queue: 返回 std::cv_status::timeout
-        note right of Queue: 线程被唤醒，wait_for()自动重新获取锁
-        activate Lock
-        note over Queue: pop() 函数判断为超时
-        Queue-->>Consumer: return false
-        deactivate Lock
+    Queue-->>-Consumer: 开始等待 (wait_for), 并自动释放锁
 
-    else 生产者唤醒 (Woken up by Producer)
-        participant Producer as DemuxThread
-        Producer->>Queue: push(new_packet) ... cond_consumer.notify_one()
-        Condition-->>Queue: 接收到通知，被唤醒
-        note right of Queue: 线程被唤醒并自动重新获取锁
-        activate Lock
-        Queue->>Queue: 重新检查 while 条件
-        note over Queue:  队列不空，退出循环。从内部队列取出数据包
-        Queue->>Lock: unlock()
-        deactivate Lock
-        note over Queue: 通知可能在等待的生产者 (cond_producer)
-        Queue-->>Consumer: return true
+    alt 等待超时
+        note over Consumer, Queue: 100ms内无事发生
+        Consumer-->>+Queue: 被唤醒(超时), 重新加锁
+        Queue-->>-Consumer: pop() 返回 false
+
+    else 被生产者唤醒
+        % 生产者放入数据
+        Producer->>+Queue: push(new_packet)
+        % 通知消费者有新货了
+        Queue->>Consumer: notify()
+        Queue-->>-Producer: push() 成功
+
+        Consumer-->>+Queue: 被唤醒, 重新加锁并检查
+        note over Queue: 检查通过, 取出packet
+        Queue-->>-Consumer: pop() 返回 true
     end
-
-    deactivate Queue
-
 ```
