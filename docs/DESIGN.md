@@ -62,9 +62,15 @@
 
 这些模块被集成在主类 `MediaPlayer` 中，通过初始化辅助函数 `MediaPlayer::start_threads` 和 主循环函数 `MediaPlayer::runMainLoop` 启动各个工作线程，并通过定时轮询的事件处理机制 `MediaPlayer::handle_event` 来响应用户的交互操作。
 
-更细致具体的架构和数据流的交互时序图如下:
+更细致的架构与数据流的流程图如下:
 
-![核心模块交互时序图](assets/pic3-detailed_core_architecture.svg)
+1. 初始化资源、读取数据与解封装
+
+![初始化流程-小图](assets/pic3_1-initialization_flowchart.svg)
+
+2. 总体流程
+
+![总体流程-主图](assets/pic3_2-overall_core_flowchart.svg)
 
 在各个线程中，每个模块都通过对应的接口执行相应关键任务:
 
