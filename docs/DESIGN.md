@@ -11,6 +11,10 @@
 - [SDLplayerCore 详细设计文档](#sdlplayercore-详细设计文档)
   - [目录](#目录)
   - [1. 总体架构与数据流](#1-总体架构与数据流)
+    - [1.1 核心模块](#11-核心模块)
+    - [1.2 初始化流程](#12-初始化流程)
+    - [1.3 运行时数据流与线程协作](#13-运行时数据流与线程协作)
+    - [1.4 设计要点总结](#14-设计要点总结)
   - [2. 核心机制实现](#2-核心机制实现)
     - [2.1 缓存队列与流量控制](#21-缓存队列与流量控制)
       - [2.1.1 引言](#211-引言)
@@ -40,59 +44,67 @@
 
 ## 1. 总体架构与数据流
 
-本项目采取了类似 [`ffplay`](https://github.com/FFmpeg/FFmpeg/blob/master/fftools/ffplay.c) 的经典"生产者-消费者"架构，通过多线程实现模块间的解耦与并行处理。播放器的核心模块与数据流示意图如下:
+本播放器采用经典的多线程“生产者-消费者”模型，其设计思想与 [`ffplay`](https://github.com/FFmpeg/FFmpeg/blob/master/fftools/ffplay.c) 类似。设计的核心思想是将复杂的播放流程拆解为一组职责单一、相互解耦的模块。模块间通过线程安全的队列进行数据交换，这不仅能提高处理效率，也更易于理解和维护代码逻辑。
+
+### 1.1 核心模块
+
+整个播放流程被划分为七个核心模块，每个模块专注于一项特定任务：
+
+| 模块               | 主要职责                                 | 处理的数据单元      | 对应线程            |
+| :------------------------ | :----------------------------------- | :----------- | :-------------- |
+| **解封装 (Demuxer)**         | 读取媒体文件，将其分解为音频和视频的压缩数据包。             | `AVPacket`   | DemuxThread        |
+| **视频解码 (Video Decoder)**  | 将视频压缩包解码为原始视频帧。                      | `AVFrame`    | VideoDecodeThread |
+| **音频解码 (Audio Decoder)**  | 将音频压缩包解码为原始音频采样。                     | `AVFrame`    | AudioDecodeThread |
+| **视频渲染 (Video Renderer)** | 根据同步时钟，将视频帧显示到屏幕上。                   | 纹理 (Texture) | VideoRenderThread |
+| **音频渲染 (Audio Renderer)** | 将音频采样推送给音频设备进行播放。                    | PCM 数据       | AudioRenderThread |
+| **数据包队列 (Packet Queue)**  | 缓冲解封装后的压缩包，用于解耦 **解封装** 与 **解码** 线程。 | `AVPacket`   | (线程间共享)         |
+| **数据帧队列 (Frame Queue)**     | 缓冲解码后的原始帧，用于解耦 **解码** 与 **渲染** 线程。   | `AVFrame`    | (线程间共享)         |
+
+这种 **两级缓冲（数据包队列 + 数据帧队列）** 机制是本播放器的关键设计之一。它有效地隔离了 I/O、解码和渲染三个阶段，解决了各环节生产者与消费者速率不匹配的问题，确保播放流畅。
 
 ![核心模块与数据流图](assets/pic2-basic_architecture.svg)
 
-每个模块都有各自明确的任务:
+### 1.2 初始化流程
 
-1. **解封装模块 (Demuxer)**: 负责读取媒体文件（如 MP4, MKV），解析其容器格式，并将分离出的音频、视频压缩数据包 (`AVPacket`、`AVFrame`) 分别送入对应的缓存队列中。
+播放器的生命周期始于 `main` 线程。`main` 线程负责：
 
-2. **缓存队列模块 (Queue)**: 作为线程间数据交换的缓冲池，用于存放 `AVPacket` 和 `AVFrame`。它解决了生产者与消费者速率不匹配的问题，并提供了必要的线程安全与同步机制。本项目中的 `PacketQueue` (数据包队列) 和 `FrameQueue` (数据帧队列) 在设计上基本一致。
+1. **创建与初始化 `MediaPlayer` 实例**：这是管理所有模块和线程的顶层对象。
+2. **初始化组件**：创建所有缓存队列，初始化时钟管理器，初始化 FFmpeg 和 SDL 资源。
+3. **启动线程**：创建并启动解封装、解码和渲染等工作线程。
+4. **进入事件主循环**：等待用户输入（如暂停、关闭等）或系统事件。
 
-3. **视频解码模块 (Video Decoder)**: 从视频包队列 (`VideoPacketQueue`) 中获取 `AVPacket`，利用 FFmpeg 解码器将其解码为原始视频数据帧 (`AVFrame`)，然后将 `AVFrame` 放入视频帧队列 (`VideoFrameQueue`)。
-
-4. **视频渲染模块 (Video Renderer)**: 从视频帧队列 (`VideoFrameQueue`) 中获取 `AVFrame`，根据同步时钟决定最佳渲染时机。在渲染前，需要通过 `sws_scale` 进行色彩空间转换（从 `AVFrame` 到 YUV）。最终使用 SDL2 的渲染函数将图像绘制到窗口上。
-
-5. **音频解码模块(Audio Decoder)**: 从音频包队列 (`AudioPacketQueue`) 中获取 `AVPacket`，利用 FFmpeg 解码器将其解码为原始音频数据帧 (`AVFrame`)，然后将 `AVFrame` 放入音频帧队列 (`AudioFrameQueue`)。
-
-6. **音频渲染模块 (Audio Renderer)**: 从音频帧队列 (`AudioFrameQueue`) 中获取 `AVFrame`。如果解码后的音频格式（如采样率、声道数）与设备不符，会通过 `swr_convert` 进行重采样。最终，将处理好的 PCM 数据推送给 SDL 的音频缓冲区进行播放。
-
-7. **同步时钟模块 (Clock Manager)**: 负责统一管理播放时间。通常以音频时钟为主时钟（因为人耳对音频的延迟更敏感），当无法获取音频时使用外部时钟（SDL2提供的系统时钟）；视频通过比对自身的显示时间戳 (PTS) 与主时钟来调整播放节奏（延迟、跳帧或加速），从而实现音视频同步。
-
-这些模块被集成在主类 `MediaPlayer` 中，通过初始化辅助函数 `MediaPlayer::start_threads` 和 主循环函数 `MediaPlayer::runMainLoop` 启动各个工作线程，并通过定时轮询的事件处理机制 `MediaPlayer::handle_event` 来响应用户的交互操作。
-
-更细致的架构与数据流的流程图如下:
-
-1. 初始化资源、读取数据与解封装
+初始化流程示意图如下：
 
 ![初始化流程-小图](assets/pic3_1-initialization_flowchart.svg)
 
-2. 总体流程
+### 1.3 运行时数据流与线程协作
+
+初始化完成后，数据便开始在各个工作线程间流动。整个过程就像一条流水线：
 
 ![总体流程-主图](assets/pic3_2-overall_core_flowchart.svg)
 
-在各个线程中，每个模块都通过对应的接口执行相应关键任务:
 
-**1.  解封装线程 (Demux Thread)**: 
+1. **解封装线程 (DemuxThread)**
 
-- 通过 `avformat_open_input` 打开媒体文件并用 `avformat_find_stream_info` 读取流信息。在主循环中，反复调用 `av_read_frame` 从文件中读取数据包 (`AVPacket`)，并根据其流索引，分别推入音频或视频的 `PacketQueue` 中。
+   - 循环调用 `av_read_frame()` 从媒体文件中读取数据。
+   - 根据流类型的不同，将获取的 `AVPacket` 分别推入 **视频包队列** 和 **音频包队列**。
 
-**2.  视频解码线程 (Video Decode Thread)**: 
+2. **解码线程 (Video/Audio DecodeThread)**
 
-- 循环地从 `PacketQueue` 中取出 `AVPacket`，通过 `avcodec_send_packet` 将其发送给解码器。然后，通过 `avcodec_receive_frame` 接收解码完成的 `AVFrame`，并将其存入 `FrameQueue` 以供渲染线程使用。
+   - 音/视频解码线程 各自从对应的 **包队列** 中取出 `AVPacket`。
+   - 调用 `avcodec_send_packet()` 和 `avcodec_receive_frame()` 进行解码。
+   - 将解码生成的 `AVFrame` 推入对应的 **数据帧队列**。
 
-**3.  视频渲染线程 (Video Render Thread)**: 
+3. **渲染线程 (Video/Audio RenderThread)**
 
-- 循环地从 `FrameQueue` 中取出 `AVFrame`。根据该帧的 PTS 和同步时钟的当前时间，计算出需要延迟的时间并等待。之后，使用 `sws_scale` (如果需要) 进行图像格式转换，再调用 `SDL_UpdateYUVTexture`, `SDL_RenderCopy`, `SDL_RenderPresent` 等函数将图像更新并显示在窗口上。
+   - **音频渲染**: 从 **音频帧队列** 取出 `AVFrame`，经重采样（如果需要）后通过 `SDL_QueueAudio()` 交给硬件播放。**同时，它会根据已播放的音频数据量，持续更新全局的主时钟**。
+   - **视频渲染**: 从 **视频帧队列** 取出 `AVFrame`。渲染前，它会 **查询主时钟（音频时钟）**，并与当前视频帧的显示时间戳（PTS）进行比较，通过 **精确延时 (`SDL_Delay`)、丢帧或立即显示** 来严格与音频保持同步，最终调用 `SDL_RenderPresent()` 呈现出画面。
 
-**4. 音频解码线程 (Audio Decode Thread)**:
+### 1.4 设计要点总结
 
-- 与视频解码线程类似。循环地从音频 `PacketQueue` 中取出 `AVPacket`，通过 `avcodec_send_packet` 和 `avcodec_receive_frame` 解码出 `AVFrame`，并将其存入音频 `FrameQueue`。
-
-**5. 音频渲染线程 (Audio Render Thread)**:
-
-- 循环地从 `FrameQueue` 中取出 `AVFrame`，使用 `swr_convert` (如果需要) 进行重采样后，调用 `SDL_QueueAudio` 将 PCM 数据推入播放队列，并根据推送的数据量精确更新主时钟。
+- **音频主时钟**：以音频播放进度作为主要同步基准。这是因为人耳对音频的卡顿比人眼对画面的跳帧更敏感。采用这种策略，可以有效提升用户的使用体验。当媒体文件缺少音频轨时，会退化为外部时钟。
+- **解耦的线程模型**：每个线程职责单一，互相之间仅通过队列通信。这能降低模块间的耦合度，避免复杂的锁机制，简化并发编程的难度。
+- **抽象与封装**：`MediaPlayer` 类封装了所有复杂的内部状态和线程管理，对外提供简洁的控制接口。`ClockManager` 则统一管理时钟的读写操作，确保清晰与准确的同步逻辑。
 
 
 ## 2. 核心机制实现
