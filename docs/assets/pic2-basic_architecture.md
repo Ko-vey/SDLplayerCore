@@ -1,3 +1,5 @@
+# 核心模块与数据流图
+
 ```mermaid
 graph TD
     subgraph "主控制与解封装"
