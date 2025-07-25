@@ -492,8 +492,7 @@
 
 从用户点击关闭按钮到所有线程被成功 join 的过程，可以通过以下序列图展示。下图描绘了主线程、MediaPlayer 析构函数、各工作线程以及同步组件之间的关键交互。
 
-![优雅退出机制-线程交互图](assets/pic11-shutdown_thread_interaction.svg)
-
+![优雅退出机制-线程交互图](assets/pic9-shutdown_thread_interaction.svg)
 
 **交互关键点说明**
 
