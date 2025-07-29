@@ -33,7 +33,7 @@ extern "C" {
 
 class SDLAudioRenderer : public IAudioRenderer {
 public:
-    SDLAudioRenderer();
+    SDLAudioRenderer() = default;
     virtual ~SDLAudioRenderer() override;
 
     // 禁用拷贝构造和赋值

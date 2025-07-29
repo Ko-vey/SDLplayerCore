@@ -26,8 +26,6 @@ extern "C" {
 #include <libavutil/error.h>
 }
 
-SDLAudioRenderer::SDLAudioRenderer() {}
-
 SDLAudioRenderer::~SDLAudioRenderer() {
     close();
 }
