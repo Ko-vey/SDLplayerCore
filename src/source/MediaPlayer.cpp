@@ -132,6 +132,12 @@ void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
 
 // 初始化SDL视频渲染器
 void MediaPlayer::init_sdl_video_renderer() {
+    // 如果没有视频流，则跳过此函数的所有逻辑
+    if (videoStreamIndex < 0) {
+        cout << "MediaPlayer: No video stream found. Skipping video renderer initialization." << endl;
+        return;
+    }
+
     cout << "MediaPlayer: Initializing SDL renderer..." << endl;
 
     // 从已初始化的解码器获取视频尺寸
@@ -164,7 +170,7 @@ void MediaPlayer::init_sdl_video_renderer() {
 
 // 初始化SDL音频渲染器
 void MediaPlayer::init_sdl_audio_renderer() {
-    if (audioStreamIndex == -1) {
+    if (audioStreamIndex < 0) {
         cout << "MediaPlayer: No audio stream found. Skipping audio renderer initialization." << endl;
         // 即使没有音频流，也要通知时钟管理器
         if (m_clockManager) m_clockManager->setAudioHardwareParams(0, 0, false);
@@ -191,19 +197,19 @@ void MediaPlayer::init_sdl_audio_renderer() {
 void MediaPlayer::start_threads() {
     cout << "MediaPlayer: Starting worker threads..." << endl;
 
-    // 启动解复用线程
+    // 启动解封装线程
     m_demuxThread = SDL_CreateThread(demux_thread_entry, "DemuxThread", this);
     if (!m_demuxThread) throw std::runtime_error("Thread Error: Could not create demux thread.");
 
     // 启动视频解码线程
-    if (videoStreamIndex != -1) {
+    if (videoStreamIndex >= 0) {
         m_videoDecodeThread = SDL_CreateThread(video_decode_thread_entry, "VideoDecodeThread", this);
         // 解码线程创建失败，但解复用线程已经启动！必须在抛出异常前通知它退出
         if (!m_videoDecodeThread) throw std::runtime_error("Thread Error: Could not create video decode thread.");
         // 视频渲染线程 (m_videoRenderthread) 在 runMainLoop 中启动，不属于构造阶段
     }
     // 启动音频解码线程
-    if (audioStreamIndex != -1) {
+    if (audioStreamIndex >= 0) {
         m_audioDecodeThread = SDL_CreateThread(audio_decode_thread_entry, "AudioDecodeThread", this);
         if (!m_audioDecodeThread) throw std::runtime_error("Thread Error: Could not create audio decode thread.");
         m_audioRenderThread = SDL_CreateThread(audio_render_thread_entry, "AudioRenderThread", this);
@@ -652,7 +658,7 @@ int MediaPlayer::demux_thread_func() {
                 }
             }
         }
-        else if (audioStreamIndex != -1 && demux_packet->stream_index == audioStreamIndex) {
+        else if (audioStreamIndex >= 0 && demux_packet->stream_index == audioStreamIndex) {
             if (m_audioPacketQueue) {
                 if (!m_audioPacketQueue->push(demux_packet)) {
                     // 推送失败，包被丢弃。此处无需额外操作
