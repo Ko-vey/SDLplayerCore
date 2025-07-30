@@ -20,6 +20,7 @@
 
 #include "../include/ClockManager.h"
 #include <iostream>
+#include <cassert>
 
 ClockManager::ClockManager() :
     m_video_clock_time(0.0),
@@ -27,13 +28,31 @@ ClockManager::ClockManager() :
     m_start_time(0),
     m_paused_at(0),
     m_paused(false),
-    m_master_hint(InitialMasterHint::PREFER_AUDIO) {}
+    m_master_clock_type(MasterClockType::AUDIO) {}
 
-void ClockManager::init(InitialMasterHint hint) {
+void ClockManager::init(bool has_audio, bool has_video) {
     reset();
 
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_master_hint = hint;
+
+    // 存储流信息
+    m_has_audio_stream = has_audio;
+    m_has_video_stream = has_video;
+
+    // 根据可用流智能选择最佳主时钟
+    // 策略：有音频用音频，没音频但有视频用视频，都没有用外部时钟
+    if (m_has_audio_stream) {
+        m_master_clock_type = MasterClockType::AUDIO;
+        std::cout << "ClockManager: Initializing with AUDIO master clock." << std::endl;
+    }
+    else if (m_has_video_stream) {
+        m_master_clock_type = MasterClockType::VIDEO;
+        std::cout << "ClockManager: Initializing with VIDEO master clock (no audio stream)." << std::endl;
+    }
+    else {
+        m_master_clock_type = MasterClockType::EXTERNAL;
+        std::cout << "ClockManager: Initializing with EXTERNAL master clock (no A/V streams)." << std::endl;
+    }
 }
 
 void ClockManager::reset() {
@@ -49,19 +68,24 @@ void ClockManager::reset() {
     m_paused = false;
 
     // 恢复到默认主时钟
-    m_master_hint = InitialMasterHint::PREFER_AUDIO;
+    m_master_clock_type = MasterClockType::AUDIO;
 
     // 重置音频硬件参数相关的状态
     m_has_audio_stream = false;
     m_audio_device_id = 0;
     m_audio_bytes_per_second = 0;
+
+    m_has_video_stream = false;
     
     std::cout << "ClockManager reset." << std::endl;
 }
 
 double ClockManager::getExternalClockTime() {
     std::lock_guard<std::mutex> lock(m_mutex);
+    return getExternalClockTime_nolock();
+}
 
+double ClockManager::getExternalClockTime_nolock() {
     Uint64 now;
     if (m_paused) {
         now = m_paused_at;
@@ -72,15 +96,36 @@ double ClockManager::getExternalClockTime() {
     return (double)(now - m_start_time) / 1000.0;
 }
 
-// 实现主时钟的选择逻辑
-double ClockManager::getMasterClockTime() {
-    // getAudioClockTime 和 getExternalClockTime 内部有锁，这里不需要外层锁
-    if (m_master_hint == InitialMasterHint::PREFER_AUDIO && m_has_audio_stream) {
-        return getAudioClockTime();
-    }
+void ClockManager::setMasterClock(MasterClockType type) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_master_clock_type = type;
+}
 
-    // 默认或无音频时，回退到外部时钟（系统时间）
-    return getExternalClockTime();
+// 主时钟的选择逻辑
+double ClockManager::getMasterClockTime() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    if (m_master_clock_type == MasterClockType::VIDEO) {
+        if (m_has_video_stream) {
+            return getVideoClockTime_nolock();
+        }
+        // 如果主时钟是视频但视频流不存在（异常情况），则回退
+        return getExternalClockTime_nolock();
+    }
+    else if (m_master_clock_type == MasterClockType::AUDIO) {
+        if (m_has_audio_stream) {
+            return getAudioClockTime_nolock();
+        }
+        // 如果主时钟是音频但音频流不存在，则尝试回退到视频
+        if (m_has_video_stream) {
+            return getVideoClockTime_nolock();
+        }
+        // 如果视频也没有，最终回退到外部
+        return getExternalClockTime_nolock();
+    }
+    else { // EXTERNAL
+        return getExternalClockTime_nolock();
+    }
 }
 
 void ClockManager::setVideoClock(double pts) {
@@ -90,14 +135,19 @@ void ClockManager::setVideoClock(double pts) {
 
 double ClockManager::getVideoClockTime() {
     std::lock_guard<std::mutex> lock(m_mutex);
+    return getVideoClockTime_nolock();
+}
+
+double ClockManager::getVideoClockTime_nolock() {
     return m_video_clock_time;
 }
 
-void ClockManager::setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond, bool hasAudioStream) {
+void ClockManager::setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    // 断言，确保在调用此函数时，确实有音频流
+    assert(m_has_audio_stream && "setAudioHardwareParams called but no audio stream was reported on init");
     m_audio_device_id = deviceId;
     m_audio_bytes_per_second = bytesPerSecond;
-    m_has_audio_stream = hasAudioStream;
 }
 
 // 此方法仅存储最新帧的PTS
@@ -109,25 +159,24 @@ void ClockManager::setAudioClock(double pts) {
 // 实现精确的音频时钟计算
 double ClockManager::getAudioClockTime() {
     std::lock_guard<std::mutex> lock(m_mutex);
+    return getAudioClockTime_nolock();
+}
+
+double ClockManager::getAudioClockTime_nolock() {
     if (!m_has_audio_stream || m_audio_device_id == 0 || m_audio_bytes_per_second == 0) {
-        return 0.0; // 如果没有音频或未初始化，返回0
+        return 0.0;
     }
 
     // 基础时间是最后推送的音频帧的PTS
     double pts = m_audio_clock_time;
-
     // 获取SDL音频队列中还未播放的数据字节数
     Uint32 buffered_bytes = SDL_GetQueuedAudioSize(m_audio_device_id);
-
     // 计算这些未播放数据的时长（秒）
     double buffered_duration_sec = (double)buffered_bytes / (double)m_audio_bytes_per_second;
-
     // 当前的音频播放时间 = 最新PTS - 未播放时长
     pts -= buffered_duration_sec;
-
     return pts;
 }
-
 
 void ClockManager::pause() {
     if (!m_paused) {
@@ -142,7 +191,6 @@ void ClockManager::pause() {
         std::cout << "Clock paused." << std::endl;
     }
 }
-
 
 void ClockManager::resume() {
     if (m_paused) {

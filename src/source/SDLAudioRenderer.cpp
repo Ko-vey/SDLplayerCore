@@ -32,6 +32,15 @@ SDLAudioRenderer::~SDLAudioRenderer() {
 
 bool SDLAudioRenderer::init(int sampleRate, int channels, AVSampleFormat decoderSampleFormat,
     AVRational timeBase, IClockManager* clockManager) {
+    // 防御性检查
+    if (decoderSampleFormat == AV_SAMPLE_FMT_NONE || channels <= 0 || sampleRate <= 0) {
+        std::cerr << "SDLAudioRenderer: init called with invalid audio parameters. "
+            << "SampleFormat: " << decoderSampleFormat
+            << ", Channels: " << channels
+            << ", SampleRate: " << sampleRate << std::endl;
+        return false; // 直接返回失败，阻止后续错误
+    }
+
     if (m_audio_device_id != 0) {
         std::cerr << "SDLAudioRenderer: Already initialized." << std::endl;
         return true;
@@ -97,7 +106,7 @@ bool SDLAudioRenderer::init(int sampleRate, int channels, AVSampleFormat decoder
     // 4. 计算并通知时钟管理器音频硬件参数
     m_bytes_per_second = m_actual_spec.freq * m_actual_spec.channels * SDL_AUDIO_BITSIZE(m_actual_spec.format) / 8;
     if (m_clock_manager) {
-        m_clock_manager->setAudioHardwareParams(m_audio_device_id, m_bytes_per_second, true);
+        m_clock_manager->setAudioHardwareParams(m_audio_device_id, m_bytes_per_second);
     }
 
     play(); // 初始化后立即开始播放（设备会播放静音，直到有数据送入）

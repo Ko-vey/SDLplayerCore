@@ -84,12 +84,16 @@ void MediaPlayer::init_components(const std::string& filepath) {
     m_audioFrameQueue = std::make_unique<FrameQueue>(MAX_AUDIO_FRAMES);
 
     m_clockManager = std::make_unique<ClockManager>();
-    m_clockManager->init(InitialMasterHint::PREFER_AUDIO);
-
     cout << "MediaPlayer: Queues and clock manager created." << endl;
 
     // 步骤 1: 初始化所有FFmpeg相关资源
     init_ffmpeg_resources(filepath);
+    // 确定流信息后，初始化时钟管理器
+    if (m_clockManager) {
+        bool has_audio = (audioStreamIndex >= 0);
+        bool has_video = (videoStreamIndex >= 0);
+        m_clockManager->init(has_audio, has_video);
+    }
 
     // 步骤 2: 初始化所有SDL相关资源 (渲染器)
     init_sdl_video_renderer();
@@ -172,8 +176,6 @@ void MediaPlayer::init_sdl_video_renderer() {
 void MediaPlayer::init_sdl_audio_renderer() {
     if (audioStreamIndex < 0) {
         cout << "MediaPlayer: No audio stream found. Skipping audio renderer initialization." << endl;
-        // 即使没有音频流，也要通知时钟管理器
-        if (m_clockManager) m_clockManager->setAudioHardwareParams(0, 0, false);
         return;
     }
     cout << "MediaPlayer: Initializing SDL Audio Renderer..." << endl;
@@ -246,50 +248,46 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
     m_demuxer = std::make_unique<FFmpegDemuxer>();
     if (!m_demuxer->open(filepath.c_str())) {
         cerr << "MediaPlayer Error: Demuxer failed to open file: " << filepath << endl;
-        m_demuxer.reset();  // 释放解封装器demuxer
         return -1;
     }
     cout << "MediaPlayer: Demuxer opened successfully." << endl;
 
-    //2、查找视频流索引并初始化视频解码器
+    // 2、查找所有可能的流
     videoStreamIndex = m_demuxer->findStream(AVMEDIA_TYPE_VIDEO);
-    if (videoStreamIndex < 0) {
-        cerr << "MediaPlayer Error: Demuxer didn't find a video stream." << endl;
-        //对于解封装器Demuxer本身，没有视频流不一定是一个致命错误
-        //但对于此播放器，期望有视频
-        m_demuxer->close();
-        m_demuxer.reset();
-        return -1;  // 如果打算只支持音频,则将其视为为非致命错误
-    }
-    cout << "MediaPlayer: Video stream found at index: " << videoStreamIndex << endl;
-
-    AVCodecParameters* pVideoCodecParams = m_demuxer->getCodecParameters(videoStreamIndex);
-    if (!pVideoCodecParams) {
-        cerr << "MediaPlayer Error: Demuxer failed to get codec parameters for video stream." << endl;
-        m_demuxer->close();
-        m_demuxer.reset();
-        return -1;
-    }
-
-    // 初始化视频解码器接口 IVideoDecoder 的实例（m_videoDeocder 已经在构造函数中创建）
-    if (!m_videoDecoder->init(pVideoCodecParams)) {
-        cerr << "MediaPlayer Error: Failed to initialize video decoder." << endl;
-        //pVideoCodecParams 已经属于 解复用器，在此处不需要释放
-        m_demuxer->close();
-        m_demuxer.reset();
-        return -1;
-    }
-    cout << "MediaPlayer: Video decoder initialized successfully via IVideoDecoder interface." << endl;
-    cout << "MediaPlayer: Decoder details - Width: " << m_videoDecoder->getWidth()
-        << ", Height: " << m_videoDecoder->getHeight()
-        << ", Format: " << av_get_pix_fmt_name(m_videoDecoder->getPixelFormat()) << endl;
-
-    // 3、查找音频流索引并初始化音频解码器
     audioStreamIndex = m_demuxer->findStream(AVMEDIA_TYPE_AUDIO);
-    if (audioStreamIndex < 0) {
-        cout << "MediaPlayer: Warning: No audio stream found." << endl;
+
+    // 3. 检查是否至少有一个可播放的流
+    if (videoStreamIndex < 0 && audioStreamIndex < 0) {
+        cerr << "MediaPlayer Error: Demuxer didn't find any video or audio streams." << endl;
+        m_demuxer->close(); // 显式关闭
+        return -1;          // 致命错误
+    }
+
+    // 4. 如果视频流存在，则初始化视频解码器
+    if (videoStreamIndex >= 0) {
+        cout << "MediaPlayer: Video stream found at index: " << videoStreamIndex << endl;
+        AVCodecParameters* pVideoCodecParams = m_demuxer->getCodecParameters(videoStreamIndex);
+        if (!pVideoCodecParams) {
+            cerr << "MediaPlayer Warning: Demuxer failed to get codec parameters for video stream. Ignoring video." << endl;
+            videoStreamIndex = -1; // 获取参数失败，也视为无视频流
+        }
+        else if (!m_videoDecoder->init(pVideoCodecParams)) {
+            cerr << "MediaPlayer Warning: Failed to initialize video decoder. Ignoring video." << endl;
+            videoStreamIndex = -1; // 初始化失败，也视为无视频流
+        }
+        else {
+            cout << "MediaPlayer: Video decoder initialized successfully." << endl;
+            cout << "MediaPlayer: Decoder details - Width: " << m_videoDecoder->getWidth()
+                << ", Height: " << m_videoDecoder->getHeight()
+                << ", Format: " << av_get_pix_fmt_name(m_videoDecoder->getPixelFormat()) << endl;
+        }
     }
     else {
+        cout << "MediaPlayer: No video stream found." << endl;
+    }
+
+    // 5. 如果音频流存在，则初始化音频解码器
+    if (audioStreamIndex >= 0) {
         cout << "MediaPlayer: Audio stream found at index: " << audioStreamIndex << endl;
         AVCodecParameters* pAudioCodecParams = m_demuxer->getCodecParameters(audioStreamIndex);
 
@@ -297,37 +295,48 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
         AVRational audioTimeBase = m_demuxer->getTimeBase(audioStreamIndex);
 
         if (!pAudioCodecParams) {
-            cerr << "MediaPlayer Warning: Demuxer failed to get codec parameters for audio stream. Continuing without audio." << endl;
+            cerr << "MediaPlayer Warning: Demuxer failed to get codec parameters for audio stream. Ignoring audio." << endl;
+            audioStreamIndex = -1; // 将索引置为无效
+        }
+        else if (!m_audioDecoder->init(pAudioCodecParams, audioTimeBase, m_clockManager.get())) {
+            cerr << "MediaPlayer Warning: Failed to initialize audio decoder. Ignoring audio." << endl;
+            m_audioDecoder.reset(); // 初始化失败，释放解码器
             audioStreamIndex = -1; // 将索引置为无效
         }
         else {
-            // 2. 初始化音频解码器，将 time_base 传递给 init 方法
-            if (!m_audioDecoder->init(pAudioCodecParams, audioTimeBase, m_clockManager.get())) {
-                cerr << "MediaPlayer Warning: Failed to initialize audio decoder. Continuing without audio." << endl;
-                m_audioDecoder.reset(); // 初始化失败，释放解码器
-                audioStreamIndex = -1; // 将索引置为无效
-            }
-            else {
-                cout << "MediaPlayer: Audio decoder initialized successfully." << endl;
-            }
+            cout << "MediaPlayer: Audio decoder initialized successfully." << endl;
         }
     }
+    else {
+        cout << "MediaPlayer: No audio stream found." << endl;
+    }
 
-    // 4、准备视频帧转换（pFrameYUV、SwsContext）
-    // 从已经初始化的解码器获取维度和像素格式
-    int dec_width = m_videoDecoder->getWidth();
-    int dec_height = m_videoDecoder->getHeight();
-
-    if (dec_width <= 0 || dec_height <= 0) {
-        cerr << "MediaPlayer Error: Decoder returned invalid dimensions (" << dec_width << "x" << dec_height << ")." << endl;
+    // 6. 再次检查，如果经过初始化后所有流都失效了，也应报错退出
+    if (videoStreamIndex < 0 && audioStreamIndex < 0) {
+        cerr << "MediaPlayer Error: Failed to initialize any valid decoders." << endl;
         m_demuxer->close();
-        m_demuxer.reset();
         return -1;
     }
 
-    cout << "MediaPlayer: FFmpeg demuxer, decoder, and SWS context initialized." << endl;
+    // 7. 若存在视频流，准备视频相关资源
+    if (videoStreamIndex >= 0) {
+        cout << "MediaPlayer: Preparing video-specific resources (SWS context etc.)." << endl;
+        // 从已经初始化的解码器获取维度和像素格式
+        int dec_width = m_videoDecoder->getWidth();
+        int dec_height = m_videoDecoder->getHeight();
+
+        if (dec_width <= 0 || dec_height <= 0) {
+            cerr << "MediaPlayer Error: Decoder returned invalid dimensions (" << dec_width << "x" << dec_height << ")." << endl;
+            m_demuxer->close();
+            return -1;  // 视频初始化错误
+        }
+        // (未来若需要)可在此添加 SWS Context 的初始化代码
+    }
+
+    cout << "MediaPlayer: FFmpeg demuxer and decoders initialization process finished." << endl;
     return 0;
 }
+
 
 int MediaPlayer::handle_event(const SDL_Event& event) {
     switch (event.type) {

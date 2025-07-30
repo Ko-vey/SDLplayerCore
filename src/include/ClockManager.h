@@ -22,6 +22,7 @@
 
 #include "IClockManager.h"
 #include <mutex>
+
 #include "SDL2/SDL_timer.h" // SDL_GetTicks64
 #include "SDL2/SDL_audio.h" // SDL_AudioDeviceID
 
@@ -32,14 +33,16 @@ public:
     virtual ~ClockManager() = default;
 
     // 实现 IClockManager 接口
-    void init(InitialMasterHint hint) override;
+    void init(bool has_audio, bool has_video) override;
     void reset() override;
 
+    void setMasterClock(MasterClockType type) override;
     double getMasterClockTime() override;
 
     void setAudioClock(double pts) override;
     double getAudioClockTime() override;
-    void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond, bool hasAudioStream) override;
+
+    void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond) override;
 
     void setVideoClock(double pts) override;
     double getVideoClockTime() override;
@@ -51,6 +54,12 @@ public:
     bool isPaused() const override;
 
 private:
+    // 不加锁的内部get方法
+    double getAudioClockTime_nolock();
+    double getVideoClockTime_nolock();
+    double getExternalClockTime_nolock();
+
+private:
     mutable std::mutex m_mutex;
 
     double m_video_clock_time;
@@ -60,9 +69,10 @@ private:
     Uint64 m_paused_at;
 
     bool m_paused;
-    InitialMasterHint m_master_hint;
+    MasterClockType m_master_clock_type;
 
     SDL_AudioDeviceID m_audio_device_id;
     int m_audio_bytes_per_second;
-    bool m_has_audio_stream;
+    bool m_has_audio_stream; // 追踪音频流是否存在
+    bool m_has_video_stream; // 追踪视频流是否存在
 };
