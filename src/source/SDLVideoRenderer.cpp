@@ -95,6 +95,41 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
     return true;
 }
 
+bool SDLVideoRenderer::initForAudioOnly(const char* windowTitle, int width, int height, IClockManager* clockManager) {
+    m_is_audio_only = true;
+    m_clock_manager = clockManager;
+
+    m_window = SDL_CreateWindow(windowTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+        width, height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if (!m_window) {
+        std::cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
+        return false;
+    }
+
+    m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!m_renderer) {
+        std::cerr << "Could not create accelerated renderer, falling back to software. Error: " << SDL_GetError() << std::endl;
+        m_renderer = SDL_CreateRenderer(m_window, -1, 0);
+        if (!m_renderer) {
+            std::cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << std::endl;
+            return false;
+        }
+    }
+
+    // 在纯音频模式下，不需要 Texture, SwsContext, 或 YUV Frame
+    // 仅保存窗口尺寸信息
+    m_window_width = width;
+    m_window_height = height;
+
+    // 设置一个背景色并初次呈现
+    SDL_SetRenderDrawColor(m_renderer, 128, 128, 128, 255); // 深灰色背景
+    SDL_RenderClear(m_renderer);
+    SDL_RenderPresent(m_renderer);
+
+    std::cout << "SDLVideoRenderer: Initialized in audio-only mode." << std::endl;
+    return true;
+}
+
 void SDLVideoRenderer::setSyncParameters(AVRational time_base, double frame_rate) {
     m_time_base = time_base;
     if (frame_rate > 0) {
@@ -108,6 +143,9 @@ void SDLVideoRenderer::setSyncParameters(AVRational time_base, double frame_rate
 }
 
 bool SDLVideoRenderer::renderFrame(AVFrame* frame) {
+    // 如果是纯音频模式，直接返回，不进行任何视频渲染操作
+    if (m_is_audio_only) return false;
+
     if (!frame || !m_clock_manager || !m_window || !m_renderer) return false;
     
     // --- 1、音视频同步逻辑  ---
@@ -223,34 +261,44 @@ void SDLVideoRenderer::refresh() {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_renderer || !m_window) return;
 
-    // 如果没有有效的最后一帧，则只清屏
-    if (!m_last_rendered_frame || m_last_rendered_frame->width == 0) {
-        SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
+    // 根据模式选择不同的刷新行为
+    if (m_is_audio_only) {
+        // 在纯音频模式下，只需清屏以响应窗口事件（如尺寸调整）
+        SDL_SetRenderDrawColor(m_renderer, 128, 128, 128, 255); // 深灰色背景
         SDL_RenderClear(m_renderer);
-        SDL_RenderPresent(m_renderer);
-        return;
     }
+    // 视频模式下的刷新逻辑
+    else {
+        // 如果没有有效的最后一帧，则只清屏
+        if (!m_last_rendered_frame || m_last_rendered_frame->width == 0) {
+            SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
+            SDL_RenderClear(m_renderer);
+        }
+        // 如果有帧，就准备一个包含视频的画面
+        else {
+            // 使用 m_last_rendered_frame 的数据重新填充纹理
+            // 这样可以从系统造成的纹理内容丢失中恢复
+            if (sws_scale(m_sws_context, (const uint8_t* const*)m_last_rendered_frame->data, m_last_rendered_frame->linesize,
+                0, m_video_height, m_yuv_frame->data, m_yuv_frame->linesize) < 0) {
+                std::cerr << "SDLVideoRenderer: Error in sws_scale during refresh." << std::endl;
+                return;
+            }
 
-    // 使用 m_last_rendered_frame 的数据重新填充纹理
-    // 这样可以从系统造成的纹理内容丢失中恢复
-    if (sws_scale(m_sws_context, (const uint8_t* const*)m_last_rendered_frame->data, m_last_rendered_frame->linesize,
-        0, m_video_height, m_yuv_frame->data, m_yuv_frame->linesize) < 0) {
-        std::cerr << "SDLVideoRenderer: Error in sws_scale during refresh." << std::endl;
-        return;
+            SDL_UpdateYUVTexture(m_texture, nullptr,
+                m_yuv_frame->data[0], m_yuv_frame->linesize[0],
+                m_yuv_frame->data[1], m_yuv_frame->linesize[1],
+                m_yuv_frame->data[2], m_yuv_frame->linesize[2]);
+
+            SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
+            SDL_RenderClear(m_renderer);
+
+            int currentWindowWidth, currentWindowHeight;
+            SDL_GetWindowSize(m_window, &currentWindowWidth, &currentWindowHeight);
+
+            SDL_Rect displayRect = calculateDisplayRect(currentWindowWidth, currentWindowHeight);
+            SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect);
+        }
     }
-
-    SDL_UpdateYUVTexture(m_texture, nullptr,
-        m_yuv_frame->data[0], m_yuv_frame->linesize[0],
-        m_yuv_frame->data[1], m_yuv_frame->linesize[1],
-        m_yuv_frame->data[2], m_yuv_frame->linesize[2]);
-
-    SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
-    SDL_RenderClear(m_renderer);
-
-    int currentWindowWidth, currentWindowHeight;
-    SDL_GetWindowSize(m_window, &currentWindowWidth, &currentWindowHeight);
-    SDL_Rect displayRect = calculateDisplayRect(currentWindowWidth, currentWindowHeight);
-    SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect);
 
     SDL_RenderPresent(m_renderer);
     //std::cout << "SDLVideoRenderer: Display refreshed with last valid frame." << std::endl;

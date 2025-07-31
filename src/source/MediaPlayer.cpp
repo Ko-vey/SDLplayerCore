@@ -136,40 +136,50 @@ void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
 
 // 初始化SDL视频渲染器
 void MediaPlayer::init_sdl_video_renderer() {
-    // 如果没有视频流，则跳过此函数的所有逻辑
-    if (videoStreamIndex < 0) {
-        cout << "MediaPlayer: No video stream found. Skipping video renderer initialization." << endl;
-        return;
-    }
-
     cout << "MediaPlayer: Initializing SDL renderer..." << endl;
 
-    // 从已初始化的解码器获取视频尺寸
-    int video_width = m_videoDecoder->getWidth();
-    int video_height = m_videoDecoder->getHeight();
-    if (video_width <= 0 || video_height <= 0) {
-        throw std::runtime_error("SDL Init Error: Video decoder did not provide valid dimensions.");
-    }
-
-    // 创建并初始化一个具体的渲染器实例
+    // 总是创建 SDLVideoRenderer 实例
     auto sdl_renderer = std::make_unique<SDLVideoRenderer>();
-    if (!sdl_renderer->init("SDLplayerCore", video_width, video_height,
-        m_videoDecoder->getPixelFormat(), m_clockManager.get())) {
-        throw std::runtime_error("SDL Init Error: Failed to initialize SDL Video Renderer.");
-    }
 
-    // 设置同步所需的时钟参数
-    videoStreamIndex = m_demuxer->findStream(AVMEDIA_TYPE_VIDEO);
+    // 如果有视频流，则进行完整初始化
     if (videoStreamIndex >= 0) {
+        cout << "MediaPlayer: Video stream found. Initializing full video renderer." << endl;
+
+        // 从已初始化的解码器获取视频尺寸
+        int video_width = m_videoDecoder->getWidth();
+        int video_height = m_videoDecoder->getHeight();
+        if (video_width <= 0 || video_height <= 0) {
+            throw std::runtime_error("SDL Init Error: Video decoder did not provide valid dimensions.");
+        }
+
+        if (!sdl_renderer->init("SDLplayerCore (Video)", video_width, video_height,
+            m_videoDecoder->getPixelFormat(), m_clockManager.get())) {
+            throw std::runtime_error("SDL Init Error: Failed to initialize SDL Video Renderer.");
+        }
+
+        // 设置同步所需的时钟参数
         AVStream* video_stream = m_demuxer->getFormatContext()->streams[videoStreamIndex];
         if (video_stream) {
             sdl_renderer->setSyncParameters(video_stream->time_base, av_q2d(video_stream->avg_frame_rate));
         }
     }
+    // 如果没有视频流，但有音频流，则进行纯音频模式的初始化
+    else if (audioStreamIndex >= 0) {
+        cout << "MediaPlayer: No video stream. Initializing in audio-only mode." << endl;
+        // 使用默认尺寸创建一个用于交互的窗口
+        if (!sdl_renderer->initForAudioOnly("SDLplayerCore (Audio)", 640, 480, m_clockManager.get())) {
+            throw std::runtime_error("SDL Init Error: Failed to initialize audio-only window.");
+        }
+    }
+    // 如果视频和音频流都没有，则不创建渲染器
+    else {
+        cout << "MediaPlayer: No video or audio streams found. Skipping renderer initialization." << endl;
+        return; // 在这种情况下，m_videoRenderer 将保持 nullptr
+    }
 
     // 初始化成功，将所有权转移给成员变量
     m_videoRenderer = std::move(sdl_renderer);
-    cout << "MediaPlayer: SDL renderer initialized successfully." << endl;
+    cout << "MediaPlayer: SDL renderer component initialized successfully." << endl;
 }
 
 // 初始化SDL音频渲染器
@@ -438,16 +448,19 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
 int MediaPlayer::runMainLoop() {
     cout << "MediaPlayer: Starting main loop (event handling and video render trigger)." << endl;
 
-    // 启动视频渲染线程 (确保在循环前启动)
-    // 视频渲染线程在此启动（而不是构造阶段），是为了将“对象构建/数据准备”与“对象运行/用户交互”分离
-    m_videoRenderthread = SDL_CreateThread(video_render_thread_entry, "VideoRenderThread", this);
-    if (!m_videoRenderthread) {
-        cerr << "MediaPlayer Error: Could not create video render thread." << endl;
-        m_quit = true; // 向其他线程发出退出信号
-        // 确保在返回错误之前其他线程已加入
-        if (m_videoDecodeThread) SDL_WaitThread(m_videoDecodeThread, nullptr);
-        if (m_demuxThread) SDL_WaitThread(m_demuxThread, nullptr);
-        return -1;
+    // 只在有视频流时才启动视频渲染线程
+    if (videoStreamIndex >= 0) {
+        // 启动视频渲染线程 (在循环前启动)
+        // 视频渲染线程在此启动（而不是构造阶段），是为了将“对象构建/数据准备”与“对象运行/用户交互”分离
+        m_videoRenderthread = SDL_CreateThread(video_render_thread_entry, "VideoRenderThread", this);
+        if (!m_videoRenderthread) {
+            cerr << "MediaPlayer Error: Could not create video render thread." << endl;
+            m_quit = true; // 向其他线程发出退出信号
+            // 确保在返回错误之前其他线程已加入
+            if (m_videoDecodeThread) SDL_WaitThread(m_videoDecodeThread, nullptr);
+            if (m_demuxThread) SDL_WaitThread(m_demuxThread, nullptr);
+            return -1;
+        }
     }
 
     SDL_Event event;

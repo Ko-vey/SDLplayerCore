@@ -66,6 +66,9 @@ private:
     // 保存最后一帧的副本，用于刷新和恢复
     AVFrame* m_last_rendered_frame = nullptr;
     bool m_texture_lost = false; // 标记纹理内容是否可能已丢失
+
+    bool m_is_audio_only = false;   // 标记是否为纯音频模式
+
 public:
     SDLVideoRenderer() = default;
     virtual ~SDLVideoRenderer();
@@ -93,4 +96,9 @@ public:
     * @brief 获取窗口指针的方法，以供外部检查窗口状态
     */
     SDL_Window* getWindow() const { return m_window; }
+
+    /**
+    * @brief 为纯音频播放模式设计的初始化方法，初始化一个窗口和渲染器，但不包含视频相关资源
+    */
+    bool initForAudioOnly(const char* windowTitle, int width, int height, IClockManager* clockManager);
 };
