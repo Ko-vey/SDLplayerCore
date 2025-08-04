@@ -36,7 +36,7 @@ public:
 
 	/**
 	* @brief 使用给定的编解码器参数，初始化视频解码器
-	* @param codecParams 指向从解复用器获取的视频流的 AVCodecParameters 的指针
+	* @param codecParams 指向从解封装器获取的视频流的 AVCodecParameters 的指针
 	* @return 若初始化成功返回true，否则返回false。
 	*/
 	virtual bool init(AVCodecParameters* codecParams) = 0;

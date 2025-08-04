@@ -36,7 +36,7 @@ struct SwsContext;
 // 接口头文件
 #include "PacketQueue.h"    // 数据包队列
 #include "FrameQueue.h"     // 数据帧队列
-#include "IDemuxer.h"       // 解复用器
+#include "IDemuxer.h"       // 解封装器
 #include "IVideoDecoder.h"  // 视频解码器
 #include "IAudioDecoder.h"  // 音频解码器
 #include "IVideoRenderer.h" // 视频渲染器
@@ -73,7 +73,7 @@ private:
     std::unique_ptr<FrameQueue> m_audioFrameQueue;      // 音频帧队列
 
     // 关系：MediaPlayer HAS-A IWorker
-    std::unique_ptr<IDemuxer> m_demuxer;                // 解复用器
+    std::unique_ptr<IDemuxer> m_demuxer;                // 解封装器
     std::unique_ptr<IVideoDecoder> m_videoDecoder;      // 视频解码器
     std::unique_ptr<IAudioDecoder> m_audioDecoder;      // 音频解码器
     std::unique_ptr<IVideoRenderer> m_videoRenderer;    // 视频渲染器
@@ -81,7 +81,7 @@ private:
     std::unique_ptr<IClockManager> m_clockManager;      // 时钟管理器
 
     // 内部状态变量
-    int videoStreamIndex = -1;                  // 解复用器找到的视频流索引
+    int videoStreamIndex = -1;                  // 解封装器找到的视频流索引
     int audioStreamIndex = -1;                  // 音频流索引
     // 其他变量
     int frame_cnt = 0;                          // 帧计数器
@@ -92,7 +92,7 @@ private:
     AVFrame* m_renderingAudioFrame = nullptr;   // 用于 音频渲染 的 Frame
 
     // 内部线程句柄
-    SDL_Thread* m_demuxThread = nullptr;        // 解复用线程
+    SDL_Thread* m_demuxThread = nullptr;        // 解封装线程
     SDL_Thread* m_videoDecodeThread = nullptr;  // 视频解码线程
     SDL_Thread* m_videoRenderthread = nullptr;  // 视频渲染线程
     SDL_Thread* m_audioDecodeThread = nullptr;  // 音频解码线程

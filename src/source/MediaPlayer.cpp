@@ -126,7 +126,7 @@ void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
     m_videoDecoder = std::make_unique<FFmpegVideoDecoder>();
     m_audioDecoder = std::make_unique<FFmpegAudioDecoder>();
 
-    // 调用集成的解复用器和解码器初始化函数
+    // 调用集成的解封装器和解码器初始化函数
     if (init_demuxer_and_decoders(filepath) != 0) {
         // 不在这里清理，直接抛出异常，让主catch块处理
         throw std::runtime_error("FFmpeg Init Error: Demuxer/Decoder initialization failed.");
@@ -216,7 +216,7 @@ void MediaPlayer::start_threads() {
     // 启动视频解码线程
     if (videoStreamIndex >= 0) {
         m_videoDecodeThread = SDL_CreateThread(video_decode_thread_entry, "VideoDecodeThread", this);
-        // 解码线程创建失败，但解复用线程已经启动！必须在抛出异常前通知它退出
+        // 解码线程创建失败，但解封装线程已经启动！必须在抛出异常前通知它退出
         if (!m_videoDecodeThread) throw std::runtime_error("Thread Error: Could not create video decode thread.");
         // 视频渲染线程 (m_videoRenderthread) 在 runMainLoop 中启动，不属于构造阶段
     }
@@ -622,7 +622,7 @@ void MediaPlayer::cleanup() {
     cout << "MediaPlayer: Full cleanup finished." << endl;
 }
 
-// 解复用线程入口和主函数
+// 解封装线程入口和主函数
 int MediaPlayer::demux_thread_entry(void* opaque) {
     // 获取MediaPlayer实例指针
     return static_cast<MediaPlayer*>(opaque)->demux_thread_func();
@@ -630,7 +630,7 @@ int MediaPlayer::demux_thread_entry(void* opaque) {
 
 int MediaPlayer::demux_thread_func() {
     cout << "MediaPlayer: Demux thread started." << endl;
-    AVPacket* demux_packet = av_packet_alloc();//本地包，用于从解复用器读取
+    AVPacket* demux_packet = av_packet_alloc();//本地包，用于从解封装器读取
     if (!demux_packet) {
         cerr << "MediaPlayer DemuxThread Error: Could not allocate demux_packet." << endl;
         if (m_videoPacketQueue) { m_videoPacketQueue->signal_eof(); } // 将 错误 作为EOF 进行传递
@@ -668,7 +668,7 @@ int MediaPlayer::demux_thread_func() {
                 if (m_audioPacketQueue) { m_audioPacketQueue->signal_eof(); }
                 m_quit = true; // 严重错误
             }
-            break;//退出解复用循环
+            break;//退出解封装循环
         }
 
         if (demux_packet->stream_index == videoStreamIndex) {
@@ -691,7 +691,7 @@ int MediaPlayer::demux_thread_func() {
             // 来自其他流的数据包，暂时忽略
         // }
 
-        // PacketQueue::push 会调用 av_packet_ref，因此这里解复用线程读取的原始包需要 unref
+        // PacketQueue::push 会调用 av_packet_ref，因此这里解封装线程读取的原始包需要 unref
         av_packet_unref(demux_packet);
     }
 
