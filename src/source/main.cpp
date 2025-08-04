@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
     }
     else {
         // 模式二：提示用户在控制台输入文件路径
-        std::cout << "Please enter the path to the video file and press Enter:" << std::endl;
+        std::cout << "Please enter the path of media file and press Enter:" << std::endl;
         // 使用 getline 读取可能包含空格的完整路径
         std::getline(std::cin, filepath);
 
