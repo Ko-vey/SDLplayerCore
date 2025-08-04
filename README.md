@@ -1,3 +1,7 @@
+<p align="right">
+  <a href="./.github/README.md"><strong>English</strong></a>
+</p>
+
 # SDLplayerCore
 
 <p align="center">
@@ -24,7 +28,7 @@
     - [编译与构建](#编译与构建)
     - [项目文件结构](#项目文件结构)
   - [如何使用](#如何使用)
-  - [如何贡献](#如何贡献)
+  - [问题反馈](#问题反馈)
   - [计划功能](#计划功能)
   - [许可证](#许可证)
   - [致谢](#致谢)
@@ -106,7 +110,7 @@
 
 1. **克隆项目**
     ```bash
-    git clone https://gitee.com/ko-vey/sdlplayer-core.git
+    git clone [https://gitee.com/ko-vey/sdlplayer-core.git](https://gitee.com/ko-vey/sdlplayer-core.git)
     cd SDLplayerCore
     ```
 
@@ -135,21 +139,21 @@
     1. **SDL2**
         - 从 [SDL2 官方发布页面](https://github.com/libsdl-org/SDL/releases/tag/release-2.32.2) 下载 `SDL2-devel-2.32.2-VC.zip` (适用于 Visual C++)。
         - 在项目根目录下创建 `third_party/sdl2` 文件夹，并将解压后的内容组织如下：
-        ```bash
-        third_party/sdl2/
-        ├── include/SDL2/  (存放所有 .h 文件)
-        ├── lib/      (存放所有 .lib/.pdb 文件)
-        └── bin/      (存放所有 .dll 文件)
-        ```
-    2. **FFmpeg7**
+          ```bash
+          third_party/sdl2/
+          ├── include/SDL2/  (存放所有 .h 文件)
+          ├── lib/      (存放所有 .lib/.pdb 文件)
+          └── bin/      (存放所有 .dll 文件)
+          ```
+    2. **FFmpeg 7**
         - 从 [FFmpeg 官网推荐的 Windows Builds](https://github.com/ShiftMediaProject/FFmpeg/releases/tag/7.0) 下载 shared 版本的库 (`libffmpeg_7.0_msvc17_x64.zip`)。
         - 在项目根目录下创建 `third_party/ffmpeg` 文件夹，并将解压后的内容组织如下：
-        ```bash
-        third_party/ffmpeg/
-        ├── include/  (存放 libav* 等头文件)
-        ├── lib/      (存放 .lib 文件)
-        └── bin/      (存放 .dll 文件)
-        ```
+          ```bash
+          third_party/ffmpeg/
+          ├── include/  (存放 libav* 等头文件)
+          ├── lib/      (存放 .lib 文件)
+          └── bin/      (存放 .dll 文件)
+          ```
         > 注意: 手动配置时，请确保 `CMakeLists.txt` 中的 find_package 路径与目录结构相匹配。
 
     3. **构建项目**
@@ -170,7 +174,8 @@
           # 编译
           cmake --build build
           ```
-        构建完成后，可执行文件将位于 `build/Release` 目录下。也可以使用 Visual Studio 打开 `build/SDLplayerCore.sln` 并进行编译和调试。
+
+    构建完成后，可执行文件将位于 `build/Release` 目录下。也可以使用 Visual Studio 打开 `build/SDLplayerCore.sln` 并进行编译和调试。
 
 ### 项目文件结构
 
@@ -178,7 +183,7 @@
 
 ```bash
 SDLplayerCore/
-├── .gitee/               # Git 相关配置
+├── .gitee/               # Gitee 平台相关配置
 ├── CMakeLists.txt        # CMake 配置文件，定义项目和依赖项
 ├── README.md             # 项目指南 (本文档)
 ├── LICENSE               # 许可证文件
@@ -207,62 +212,44 @@ SDLplayerCore/
 
 2. **提供媒体文件**:
 
-    程序启动后，你将看到如下提示。输入或拖入媒体文件的完整路径，然后按回车键。
+    程序启动后会提示输入文件路径。你可以输入或将媒体文件的完整路径拖入窗口，然后按回车键。
 
     ```powershell
     # 示例
     PS D:\path\to\SDLplayerCore\build\Release> ./SDLPlayer.exe
 
     Please enter the path to the media file and press Enter:
-    D:\Videos\movie.mp4 
+    D:\Videos\demo.mp4
     ```
+
+    > **关于测试文件**
+    > <details>
+    >   <summary>点击这里获取无版权的标准测试资源</summary>
+    > 
+    >   你可以使用电脑上的任何音视频文件进行测试。如果需要，这里有一些常用的、无版权问题的标准测试资源可供下载：
+    >
+    > - **视频:**
+    >    - [**Big Buck Bunny (1080p, MP4)**](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4)
+    >    - [**Sample MP4 File (360p, MP4)**](https://file-examples.com/storage/fe43ea960f688bed79dda28/2017/04/file_example_MP4_640_3MG.mp4)
+    > - **音频:**
+    >    - [**Sample MP3 File**](https://file-examples.com/index.php/sample-audio-files/sample-mp3-download/)
+    >    - [**Sample WAV File**](https://file-examples.com/index.php/sample-audio-files/sample-wav-download/)
+    >
+    >   下载后，将文件保存在你的电脑上，并在程序中输入其完整路径。
+    > </details>
 
 3. **播放控制**:
    - **播放/暂停**: 按下 `空格键`。
    - **停止播放**: 按下 `ESC键` 或者 `关闭播放器窗口` 。
    - **调整窗口**: 使用 `鼠标` 拖动窗口边缘，视频画面将自适应缩放。
 
-## 如何贡献
+## 问题反馈
 
-非常欢迎并感谢任何形式的社区贡献！如果你想参与改进 `SDLplayerCore`，请遵循以下步骤：
+本项目主要作为个人的学习记录与技术展示。因此，目前不主动寻求代码贡献（PR, Pull Requests）。
 
-1.  **沟通先行 (重要)**:
-    - 如果你想修复一个 Bug，请先到 [Issues](https://gitee.com/ko-vey/sdlplayer-core/issues) 页面查看是否已有人提出。
-    - 如果你计划增加一个新功能或进行重大修改，**建议先创建一个 Issue** 来讨论你的想法。这能确保你的工作方向与项目规划一致，避免无用功。
+但是，非常欢迎任何形式的**交流与反馈**！如果你在使用中遇到任何问题、发现了 Bug，或者对项目设计有任何建议和想法，请通过 **创建 Issue** 联系：在本项目的 [Issues 页面](./issues) 提交你的问题或建议。我会定期查看并回复。
 
-2. **Fork** 本项目: 点击项目右上角的 "Fork" 按钮。随后克隆你的 Fork(`git clone https://gitee.com/YOUR-USERNAME/SDLplayerCore.git`)。
-
-3. **创建功能分支**:
-    - 一个好的分支名能清晰地表明意图，例如：
-    ```bash
-    # 修复Bug
-    git checkout -b fix/memory-leak-on-close
-    # 增加新功能
-    git checkout -b feature/subtitle-rendering
-    ```
-
-4. **提交你的更改**:
-   - 请尽量保持与项目现有代码一致的编码风格。
-   - 进行代码修改，并在完成后提交。编写一个清晰的 Commit Message (重要)：
-    ```bash
-    # Commit Message 示例
-    git commit -m "Fix: 修复播放器关闭时可能发生的内存泄漏问题"
-    git commit -m "Feat: 添加 .srt 字幕解析与渲染功能"
-    ```
-
-5. **将分支推送到你的 Fork**:
-    ```bash
-    git push origin feature/subtitle-rendering
-    ```
-
-6. 创建一个 **Pull Request**:
-    - 回到你的 Fork 页面，点击 "Contribute"，然后选择 "Open pull request"。
-    - 在 PR 的描述中，请清晰地说明：
-        - **此 PR 解决了什么问题？** (例如: "Fixes #123")
-        - **做了哪些具体的改动？**
-        - **你是如何测试的？** (如果有的话)
-
-在收到 PR 后会尽快进行审查。感谢你的贡献！
+感谢你的关注与理解！
 
 ## 计划功能
 
@@ -278,8 +265,6 @@ SDLplayerCore/
   - [ ] 硬件加速 (考虑使用 `Direct3D 11`)
   - [ ] 变速播放 (考虑使用 `FFmpeg` 的 `avfilter`)
   - [ ] 动态时钟同步
-
-> 欢迎社区开发者认领这些功能！如果你对其中任何一项感兴趣，请创建一个 [Issue](https://gitee.com/ko-vey/sdlplayer-core/issues) 来发起讨论，非常期待你的贡献。
 
 ## 许可证
 
