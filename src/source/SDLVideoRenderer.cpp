@@ -54,27 +54,16 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
         }
     }
 
-    m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING,
-        width, height);
-    if (!m_texture) {
-        std::cerr << "Texture could not be created! SDL_Error: " << SDL_GetError() << std::endl;
-        return false;
-    }
+    m_decoder_pixel_format = decoderPixelFormat; // 保存像素格式
 
-    m_yuv_frame = av_frame_alloc();
-    if (!m_yuv_frame) {
-        std::cerr << "Could not allocate YUV frame" << std::endl;
-        return false;
-    }
-    int numBytes = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, width, height, 1);
-    uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
-    av_image_fill_arrays(m_yuv_frame->data, m_yuv_frame->linesize, buffer, AV_PIX_FMT_YUV420P, width, height, 1);
+    // 记录视频和窗口的初始尺寸
+    m_video_width = width;
+    m_video_height = height;
+    m_window_width = width;
+    m_window_height = height;
 
-    m_sws_context = sws_getContext(width, height, decoderPixelFormat,
-        width, height, AV_PIX_FMT_YUV420P,
-        SWS_BILINEAR, nullptr, nullptr, nullptr);
-    if (!m_sws_context) {
-        std::cerr << "Could not create SwsContext" << std::endl;
+    // 创建初始资源
+    if (!recreateResources()) {
         return false;
     }
 
@@ -85,13 +74,6 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
     }
 
     m_clock_manager = clockManager;
-    // 保存视频宽度和高度
-    m_video_width = width;
-    m_video_height = height;
-    // 记录初始窗口大小
-    m_window_width = width;
-    m_window_height = height;
-
     return true;
 }
 
@@ -200,13 +182,9 @@ bool SDLVideoRenderer::renderFrame(AVFrame* frame) {
     // if (delay < -AV_SYNC_THRESHOLD_MIN) { /* 此处可添加丢帧逻辑 */ }
 
     // --- 2、SDL渲染逻辑 ---
-    // 在渲染前获取最新的窗口尺寸
-    int currentWindowWidth, currentWindowHeight;
-    SDL_GetWindowSize(m_window, &currentWindowWidth, &currentWindowHeight);
-
     // 锁定互斥锁，保护渲染资源
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_renderer || !m_texture) return false;
+    if (!m_renderer || !m_texture || !m_sws_context) return false;
 
     // 在渲染前，先将当前帧数据克隆到 m_last_rendered_frame
     // 这样 refresh() 就总是有最新的有效帧可用
@@ -216,11 +194,7 @@ bool SDLVideoRenderer::renderFrame(AVFrame* frame) {
         // 非致命错误，可以继续
     }
 
-    // 如果窗口尺寸发生变化，需要更新记录的窗口大小并可能重建资源（此处仅更新记录）
-    m_window_width = currentWindowWidth;
-    m_window_height = currentWindowHeight;
-
-    // 色彩空间转换 (raw AVframe -> YUV)
+    // 色彩空间转换 (直接缩放到新纹理的尺寸)
     if (sws_scale(m_sws_context, (const uint8_t* const*)frame->data, frame->linesize,
         0, m_video_height, m_yuv_frame->data, m_yuv_frame->linesize) < 0) {
         std::cerr << "SDLVideoRenderer: Error in sws_scale." << std::endl;
@@ -233,22 +207,21 @@ bool SDLVideoRenderer::renderFrame(AVFrame* frame) {
         m_yuv_frame->data[1], m_yuv_frame->linesize[1],
         m_yuv_frame->data[2], m_yuv_frame->linesize[2]);
 
-    // 清空渲染器背景为黑色
-    SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255); // 黑色背景
+    // 清空渲染器
     SDL_RenderClear(m_renderer);
 
-    // 计算保持宽高比的显示矩形
-    SDL_Rect displayRect = calculateDisplayRect(currentWindowWidth, currentWindowHeight);
+    // 计算显示矩形（用于居中）
+    SDL_Rect displayRect = calculateDisplayRect(m_window_width, m_window_height);
     
-    // 将更新后的纹理复制到渲染器
-    // 使用计算出的矩形进行渲染，而不是整个窗口
+    // 将纹理复制到计算出的矩形位置
     SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect);
 
-    // 显示渲染结果
+    // 显示
     SDL_RenderPresent(m_renderer);
-    m_texture_lost = false; // 成功渲染后，标记纹理是有效的
 
     // --- 3、更新状态 ---
+    // 成功渲染后，标记纹理是有效的
+    m_texture_lost = false; 
     // 更新上一帧的信息，用于下一次循环的估算
     m_frame_last_pts = pts;
     m_frame_last_duration = duration;
@@ -256,8 +229,16 @@ bool SDLVideoRenderer::renderFrame(AVFrame* frame) {
     return true;
 }
 
+void SDLVideoRenderer::requestRefresh() {
+    // 非阻塞的原子操作，快速且线程安全
+    m_refresh_requested = true;
+}
+
 // 刷新纹理
 void SDLVideoRenderer::refresh() {
+    // 重置标志位
+    m_refresh_requested = false;
+
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_renderer || !m_window) return;
 
@@ -345,11 +326,7 @@ bool SDLVideoRenderer::onWindowResize(int newWidth, int newHeight) {
     m_window_width = newWidth;
     m_window_height = newHeight;
 
-    // 设置SDL渲染器的逻辑大小，这会自动处理缩放
-    // 但仍然需要手动计算显示矩形来保持宽高比
-
-    std::cout << "SDLVideoRenderer: Window resized to " << newWidth << "x" << newHeight << std::endl;
-    return true;
+    return recreateResources();
 }
 
 void SDLVideoRenderer::getWindowSize(int& width, int& height) const {
@@ -385,4 +362,69 @@ SDL_Rect SDLVideoRenderer::calculateDisplayRect(int windowWidth, int windowHeigh
     }
 
     return displayRect;
+}
+
+bool SDLVideoRenderer::recreateResources() {
+    // 该函数应该在持有锁的情况下被调用
+
+    // 1. 销毁旧的视频相关资源
+    if (m_texture) {
+        SDL_DestroyTexture(m_texture);
+        m_texture = nullptr;
+    }
+    if (m_sws_context) {
+        sws_freeContext(m_sws_context);
+        m_sws_context = nullptr;
+    }
+    // 销毁旧的 YUV 帧和其缓冲区
+    if (m_yuv_frame) {
+        av_freep(&m_yuv_frame->data[0]); // 释放由 av_image_fill_arrays 分配的 buffer
+        av_frame_free(&m_yuv_frame);
+        m_yuv_frame = nullptr;
+    }
+
+    // 2. 根据当前窗口大小计算新的显示矩形
+    SDL_Rect displayRect = calculateDisplayRect(m_window_width, m_window_height);
+    int newTextureWidth = displayRect.w;
+    int newTextureHeight = displayRect.h;
+
+    // 3. 创建新的Texture，其尺寸为最终渲染的目标尺寸
+    m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, 
+                                  newTextureWidth, newTextureHeight);
+    if (!m_texture) {
+        std::cerr << "Texture could not be recreated! SDL_Error: " << SDL_GetError() << std::endl;
+        return false;
+    }
+
+    // 4. 创建新的SwsContext，从视频原始尺寸直接缩放到新的Texture尺寸
+    m_sws_context = sws_getContext(m_video_width, m_video_height, m_decoder_pixel_format, // 需要保存解码器的像素格式
+                                    newTextureWidth, newTextureHeight, AV_PIX_FMT_YUV420P,
+                                    SWS_BILINEAR, nullptr, nullptr, nullptr);
+    if (!m_sws_context) {
+        std::cerr << "Could not recreate SwsContext" << std::endl;
+        return false;
+    }
+
+    // 5. 根据新的 Texture 尺寸，重新创建 YUV 帧和缓冲区
+    m_yuv_frame = av_frame_alloc();
+    if (!m_yuv_frame) {
+        std::cerr << "Could not allocate YUV frame" << std::endl;
+        return false;
+    }
+    int numBytes = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, newTextureWidth, newTextureHeight, 1);
+    uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
+    if (!buffer) { 
+        std::cerr << "Could not allocate memory block buffer" << std::endl;
+        av_frame_free(&m_yuv_frame); // 在返回前，释放已分配的 m_yuv_frame 结构体
+        m_yuv_frame = nullptr;
+        return false; 
+    }
+    av_image_fill_arrays(m_yuv_frame->data, m_yuv_frame->linesize, buffer, AV_PIX_FMT_YUV420P, newTextureWidth, newTextureHeight, 1);
+
+    // 保存新纹理的尺寸，给 renderFrame 用
+    m_yuv_frame->width = newTextureWidth;
+    m_yuv_frame->height = newTextureHeight;
+
+    std::cout << "SDLVideoRenderer: Recreated resources for size " << newTextureWidth << "x" << newTextureHeight << std::endl;
+    return true;
 }

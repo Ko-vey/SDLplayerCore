@@ -347,7 +347,6 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
     return 0;
 }
 
-
 int MediaPlayer::handle_event(const SDL_Event& event) {
     switch (event.type) {
     // 关闭按钮
@@ -393,36 +392,16 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
                 if (!m_videoRenderer->onWindowResize(newWidth, newHeight)) {
                     cerr << "MediaPlayer: Failed to handle window resize." << endl;
                 }
-                m_videoRenderer->refresh(); // 立即刷新显示
+                if (m_videoRenderer) m_videoRenderer->requestRefresh(); // 请求刷新
             }
         }
-        // 窗口恢复事件处理
-        else if (event.window.event == SDL_WINDOWEVENT_RESTORED) {
-            cout << "MediaPlayer: Window restored, refreshing display." << endl;
-            if (m_videoRenderer) {
-                m_videoRenderer->refresh();
-            }
-        }
-        // 窗口获得焦点事件处理  
-        else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-            cout << "MediaPlayer: Window focus gained, refreshing display." << endl;
-            if (m_videoRenderer) {
-                m_videoRenderer->refresh();
-            }
-        }
-        // 窗口显示事件处理
-        else if (event.window.event == SDL_WINDOWEVENT_SHOWN) {
-            cout << "MediaPlayer: Window shown, refreshing display." << endl;
-            if (m_videoRenderer) {
-                m_videoRenderer->refresh();
-            }
-        }
-        // 窗口暴露事件处理（窗口需要重绘时）
-        else if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
-            cout << "MediaPlayer: Window exposed, refreshing display." << endl;
-            if (m_videoRenderer) {
-                m_videoRenderer->refresh();
-            }
+        // 窗口暴露、恢复、获得焦点 或 显示 事件处理（窗口需要重绘时）
+        else if (event.window.event == SDL_WINDOWEVENT_EXPOSED ||
+                event.window.event == SDL_WINDOWEVENT_RESTORED ||
+                event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED ||
+                event.window.event == SDL_WINDOWEVENT_SHOWN) {
+            cout << "MediaPlayer: Window event requires refresh, posting request." << endl;
+            if (m_videoRenderer) m_videoRenderer->requestRefresh(); // 请求刷新
         }
         else if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
             cout << "MediaPlayer: Window close event received, requesting quit." << endl;
@@ -828,7 +807,8 @@ int MediaPlayer::video_render_func() {
         if (m_quit) break;
 
         // 尝试从队列获取新帧；使用带超时的pop，防止永久阻塞
-        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, 100);
+        // 等待时间为10ms，提高UI的响应速度
+        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, 10);
 
         if (got_new_frame) {
             // 有新帧，正常渲染
@@ -847,40 +827,12 @@ int MediaPlayer::video_render_func() {
                 break;
             }
 
-            // 没有新帧时，检查是否需要强制刷新
-            Uint64 current_time = SDL_GetTicks64();
-            bool should_force_refresh = false;
-
-            // 1. 基于时间的定期刷新
-            if (current_time - last_refresh_time > FORCE_REFRESH_INTERVAL) {
-                should_force_refresh = true;
-            }
-
-            // 2. 基于窗口状态的主动检查
-            if (m_videoRenderer) {
-                // 向下转型以调用派生类特有的方法
-                // dynamic_cast 在程序运行时进行类型转换，用于执行安全的向下转型（向子类）
-                auto* sdl_renderer = dynamic_cast<SDLVideoRenderer*>(m_videoRenderer.get());
-                if (sdl_renderer) {
-                    SDL_Window* window = sdl_renderer->getWindow();
-                    if (window) {
-                        Uint32 flags = SDL_GetWindowFlags(window);
-                        // 如果窗口可见且未最小化，就值得刷新
-                        if ((flags & SDL_WINDOW_SHOWN) && !(flags & SDL_WINDOW_MINIMIZED)) {
-                            // 这个条件可以触发刷新，即便时间间隔未到
-                        }
-                        else {
-                            // 如果窗口被隐藏或最小化，则没必要刷新
-                            should_force_refresh = false;
-                        }
-                    }
-                }
-            }
-            // 没有新帧但需要强制刷新
-            if (should_force_refresh && m_videoRenderer) {
-                cout << "MediaPlayer: Force refreshing display (no new frame)." << endl;
-                m_videoRenderer->refresh();
-                last_refresh_time = current_time; // 刷新后更新时间
+            // 检查是否有来自主线程的刷新请求
+            auto* sdl_renderer = dynamic_cast<SDLVideoRenderer*>(m_videoRenderer.get());
+            
+            if (sdl_renderer && sdl_renderer->isRefreshRequested()) {
+                cout << "MediaPlayer: Handling refresh request." << endl;
+                m_videoRenderer->refresh(); // 渲染线程自己调用refresh
             }
         }
     }

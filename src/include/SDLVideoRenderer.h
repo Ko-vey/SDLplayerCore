@@ -24,6 +24,7 @@
 #include <string>
 #include <iostream>
 #include <mutex>
+#include <atomic>
 
 #include "SDL2/SDL.h"
 
@@ -61,13 +62,19 @@ private:
     // 计算保持宽高比的显示矩形
     SDL_Rect calculateDisplayRect(int windowWidth, int windowHeight) const;
 
+    // 辅助函数，用于重新创建纹理和转换上下文
+    bool recreateResources();
+
     std::mutex m_mutex; // 用于保护对SDL资源的访问
 
     // 保存最后一帧的副本，用于刷新和恢复
     AVFrame* m_last_rendered_frame = nullptr;
     bool m_texture_lost = false; // 标记纹理内容是否可能已丢失
 
+    enum AVPixelFormat m_decoder_pixel_format;
     bool m_is_audio_only = false;   // 标记是否为纯音频模式
+
+    std::atomic<bool> m_refresh_requested = false; // 刷新请求标志
 
 public:
     SDLVideoRenderer() = default;
@@ -88,6 +95,8 @@ public:
     bool renderFrame(AVFrame* frame) override;
     void close() override;
     void refresh() override;
+    void requestRefresh() override;
+    bool isRefreshRequested() const { return m_refresh_requested; }
 
     bool onWindowResize(int newWidth, int newHeight) override;
     void getWindowSize(int& width, int& height) const override;

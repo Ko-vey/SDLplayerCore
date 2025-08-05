@@ -96,4 +96,9 @@ public:
 	 * @param height 输出参数：窗口高度
 	 */
 	virtual void getWindowSize(int& width, int& height) const = 0;
+
+	/**
+	* @brief 请求刷新
+	*/
+	virtual void requestRefresh() = 0;
 };
