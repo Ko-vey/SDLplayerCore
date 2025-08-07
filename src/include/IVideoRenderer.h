@@ -31,35 +31,63 @@ public:
 	virtual ~IVideoRenderer() = default;
 
 	/**
-	* @brief 初始化视频渲染器。
-	* 通常在此方法中创建窗口、渲染上下文（如SDL_Renderer）和纹理等。
-	* @param windowTitle 窗口标题。
-	* @param width 视频宽度（像素）。
-	* @param height 视频高度（像素）。
-	* @param decoderPixelFormat 解码器输出的原始视频帧的像素格式（例如 AV_PIX_FMT_YUV420P）。
-	* 渲染器实现可能需要根据此格式处理数据，或进行转换。
-	* @param clockManager 时钟管理器的指针，用于同步视频帧的显示。
-	* @return 若初始化成功则返回 true，否则返回 false。
-	*/
-	virtual bool init(const char* windowTitle,
-		int width,
-		int height,
-		enum AVPixelFormat decoderPixelFormat,//解码器输出的原始像素格式
-		IClockManager* clockManager) = 0;
+	 * @brief 在主线程初始化渲染器，创建窗口和所有必要的图形资源。
+	 * @param windowTitle 窗口标题。
+	 * @param width 窗口宽度。
+	 * @param height 窗口高度。
+	 * @param decoderPixelFormat 解码器输出的像素格式。
+	 * @param clockManager 时钟管理器实例。
+	 * @return 成功返回 true，失败返回 false。
+	 */
+	virtual bool init(const char* windowTitle, int width, int height,
+		enum AVPixelFormat decoderPixelFormat, IClockManager* clockManager) = 0;
 
 	/**
-	* @brief 渲染（显示）一个视频帧。
-	* 实现此方法时，需要包含音视频同步逻辑：
-	* 1、获取视频帧的PTS（显示时间戳）。
-	* 2、从IClockManager获取主时钟的当前时间。
-	* 3、比较两者，以决定是立即显示、延迟显示还是（在更复杂的实现中）丢弃该帧。
-	* 4、成功显示帧后，调用 IClockMangaer::setVideoClock() 更新视频时钟。
-	* @param frame 指向包含解码后视频数据的 AVFrame 的指针。渲染器不拥有此帧。
-	* 调用者在渲染完成后需要负责释放（例如通过 av_frame_unref)。
-	* @return 若帧被成功处理（可能被显示或者按计划丢弃/延迟），则返回true。
-	* 如果发生渲染错误，则返回false。
+	 * @brief 计算视频帧应该等待的同步延迟时间（以秒为单位）。
+	 *
+	 * 音视频同步逻辑的核心。比较传入帧的显示时间戳（PTS）和主时钟（通常是音频时钟）的当前时间。
+	 * 该计算结果用于指导调用者（通常是视频同步线程）应该延迟多久再请求渲染，以确保画面与声音同步。
+	 * 它应该在准备帧数据（prepareFrameForDisplay）之前被调用。
+	 *
+	 * @note 此函数是线程安全的，设计用于在【工作者线程】（如视频同步线程）中调用。
+	 *
+	 * @param frame 指向解码后的视频数据 AVFrame 的指针。函数会从此帧中提取PTS。
+	 * @return double 类型的延迟时间，单位为秒。
+	 * - 如果返回值 > 0，表示视频早于主时钟，调用者应延迟相应的时间。
+	 * - 如果返回值 <= 0，表示视频等于或晚于主时钟，调用者应立即请求渲染，无需等待。
 	*/
-	virtual bool renderFrame(AVFrame* frame) = 0;
+	virtual double calculateSyncDelay(AVFrame* frame) = 0;
+
+	/**
+	 * @brief 准备一个用于最终显示的视频帧，执行所有非渲染的预处理工作。
+	 *
+	 * 此函数负责执行CPU密集型的准备任务，例如将视频帧从解码器的像素格式（如 YUV420P）
+	 * 转换为渲染器所需的中间格式（如 I420）。它还会将准备好的帧数据缓存起来，
+	 * 以便后续 displayFrame() 或 refresh() 可以快速访问。
+	 *
+	 * @note 此函数是线程安全的，设计用于在【工作者线程】（如视频同步线程）中调用，
+	 * 以避免阻塞主渲染线程。
+	 *
+	 * @param frame 指向待处理的 AVFrame 的指针。函数内部可能会引用此帧（例如，将其保存为“最后一帧”）。
+	 * 调用者在函数返回后仍然需要负责 av_frame_unref()。
+	 * @return 如果帧数据成功准备并缓存，则返回 true。
+	 * 如果发生错误（如转换失败），则返回 false。
+	 */
+	virtual bool prepareFrameForDisplay(AVFrame* frame) = 0;
+	
+	/**
+	 * @brief 将最近一次准备好的视频帧实际渲染到屏幕上。
+	 *
+	 * 此函数执行所有与图形API（如SDL, OpenGL, D3D）相关的操作，包括更新纹理、
+	 * 清空渲染器、拷贝纹理到渲染目标并最终呈现画面。它应该使用由 prepareFrameForDisplay()
+	 * 准备和缓存的数据。
+	 *
+	 * @warning 此函数必须在【主线程/UI线程】中调用，以遵循图形库的线程亲和性规则。
+	 * 跨线程调用可能导致渲染失败、程序锁死或崩溃。
+	 *
+	 * @note 此函数不接受参数，因为它渲染的是内部缓存的帧。
+	 */
+	virtual void displayFrame() = 0; // 在主线程中调用
 
 	/**
 	* @brief 关闭视频渲染器并释放所有相关资源。
@@ -96,9 +124,4 @@ public:
 	 * @param height 输出参数：窗口高度
 	 */
 	virtual void getWindowSize(int& width, int& height) const = 0;
-
-	/**
-	* @brief 请求刷新
-	*/
-	virtual void requestRefresh() = 0;
 };

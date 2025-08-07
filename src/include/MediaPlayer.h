@@ -45,8 +45,8 @@ struct SwsContext;
 
 using namespace std;
 
-#define REFRESH_EVENT  (SDL_USEREVENT + 1)
-#define BREAK_EVENT  (SDL_USEREVENT + 2)
+#define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
+#define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
 extern "C" {
 #include <libavcodec/avcodec.h>

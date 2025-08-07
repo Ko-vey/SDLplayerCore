@@ -134,7 +134,6 @@ void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
     cout << "MediaPlayer: FFmpeg resources initialized successfully." << endl;
 }
 
-// 初始化SDL视频渲染器
 void MediaPlayer::init_sdl_video_renderer() {
     cout << "MediaPlayer: Initializing SDL renderer..." << endl;
 
@@ -153,7 +152,7 @@ void MediaPlayer::init_sdl_video_renderer() {
         }
 
         if (!sdl_renderer->init("SDLplayerCore (Video)", video_width, video_height,
-            m_videoDecoder->getPixelFormat(), m_clockManager.get())) {
+                                m_videoDecoder->getPixelFormat(), m_clockManager.get())) {
             throw std::runtime_error("SDL Init Error: Failed to initialize SDL Video Renderer.");
         }
 
@@ -167,19 +166,19 @@ void MediaPlayer::init_sdl_video_renderer() {
     else if (audioStreamIndex >= 0) {
         cout << "MediaPlayer: No video stream. Initializing in audio-only mode." << endl;
         // 使用默认尺寸创建一个用于交互的窗口
-        if (!sdl_renderer->initForAudioOnly("SDLplayerCore (Audio)", 640, 480, m_clockManager.get())) {
+        if (!sdl_renderer->init("SDLplayerCore (Audio)", 640, 480, AV_PIX_FMT_NONE, m_clockManager.get())) {
             throw std::runtime_error("SDL Init Error: Failed to initialize audio-only window.");
         }
     }
     // 如果视频和音频流都没有，则不创建渲染器
     else {
-        cout << "MediaPlayer: No video or audio streams found. Skipping renderer initialization." << endl;
+        cout << "MediaPlayer: No video or audio streams found. Skipping renderer preparation." << endl;
         return; // 在这种情况下，m_videoRenderer 将保持 nullptr
     }
 
-    // 初始化成功，将所有权转移给成员变量
+    // 初始化成功，将准备好的、但尚未初始化的渲染器移交给成员变量
     m_videoRenderer = std::move(sdl_renderer);
-    cout << "MediaPlayer: SDL renderer component initialized successfully." << endl;
+    cout << "MediaPlayer: SDL renderer component prepared successfully." << endl;
 }
 
 // 初始化SDL音频渲染器
@@ -212,15 +211,14 @@ void MediaPlayer::start_threads() {
     // 启动解封装线程
     m_demuxThread = SDL_CreateThread(demux_thread_entry, "DemuxThread", this);
     if (!m_demuxThread) throw std::runtime_error("Thread Error: Could not create demux thread.");
-
-    // 启动视频解码线程
+    // 启动视频解码和渲染线程
     if (videoStreamIndex >= 0) {
         m_videoDecodeThread = SDL_CreateThread(video_decode_thread_entry, "VideoDecodeThread", this);
-        // 解码线程创建失败，但解封装线程已经启动！必须在抛出异常前通知它退出
         if (!m_videoDecodeThread) throw std::runtime_error("Thread Error: Could not create video decode thread.");
-        // 视频渲染线程 (m_videoRenderthread) 在 runMainLoop 中启动，不属于构造阶段
+        m_videoRenderthread = SDL_CreateThread(video_render_thread_entry, "VideoRenderThread", this);
+        if (!m_videoRenderthread) throw std::runtime_error("Thread Error: Could not create video render thread.");
     }
-    // 启动音频解码线程
+    // 启动音频解码和渲染线程
     if (audioStreamIndex >= 0) {
         m_audioDecodeThread = SDL_CreateThread(audio_decode_thread_entry, "AudioDecodeThread", this);
         if (!m_audioDecodeThread) throw std::runtime_error("Thread Error: Could not create audio decode thread.");
@@ -351,16 +349,16 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
     switch (event.type) {
     // 关闭按钮
     case SDL_QUIT:
-        cout << "MediaPlayer: SDL_QUIT event received, requesting quit." << endl;
+    case FF_QUIT_EVENT: // 响应自定义的退出事件
+        cout << "MediaPlayer: Quit event received, requesting quit." << endl;
         m_quit = true;
-        return 0;   //表示退出
+        break;
 
     case SDL_KEYDOWN:
         // ESC退出
         if (event.key.keysym.sym == SDLK_ESCAPE) {
             cout << "MediaPlayer: Escape key pressed, requesting quit." << endl;
             m_quit = true;
-            return 0;
         }
         // 空格键暂停
         if (event.key.keysym.sym == SDLK_SPACE) {
@@ -384,96 +382,57 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
 
             int newWidth = event.window.data1;
             int newHeight = event.window.data2;
-
             cout << "MediaPlayer: Window resized to " << newWidth << "x" << newHeight << endl;
 
             // 通知渲染器处理窗口大小调整
             if (m_videoRenderer) {
-                if (!m_videoRenderer->onWindowResize(newWidth, newHeight)) {
-                    cerr << "MediaPlayer: Failed to handle window resize." << endl;
-                }
-                if (m_videoRenderer) m_videoRenderer->requestRefresh(); // 请求刷新
+                m_videoRenderer->onWindowResize(newWidth, newHeight);
+                // 调整大小后，立即用最后一帧刷新一次
+                m_videoRenderer->refresh();
             }
         }
-        // 窗口暴露、恢复、获得焦点 或 显示 事件处理（窗口需要重绘时）
+        // 窗口暴露事件处理
         else if (event.window.event == SDL_WINDOWEVENT_EXPOSED ||
                 event.window.event == SDL_WINDOWEVENT_RESTORED ||
                 event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED ||
                 event.window.event == SDL_WINDOWEVENT_SHOWN) {
             cout << "MediaPlayer: Window event requires refresh, posting request." << endl;
-            if (m_videoRenderer) m_videoRenderer->requestRefresh(); // 请求刷新
+            if (m_videoRenderer) {
+                m_videoRenderer->refresh();
+            }
         }
         else if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
             cout << "MediaPlayer: Window close event received, requesting quit." << endl;
             m_quit = true;
-            return 0;
         }
         break;
 
-    case REFRESH_EVENT: // 如果不使用轮询/延迟循环，则可以使用此事件来触发渲染
-        break;
-
-    case BREAK_EVENT:// 如果需要，从 SDL_Delay 唤醒线程
-        cout << "MediaPlayer: Break event received." << endl;
+    case FF_REFRESH_EVENT:
+        // 响应同步线程的通知，在主线程执行渲染
+        if (m_videoRenderer) {
+            m_videoRenderer->displayFrame();
+            frame_cnt++;
+        }
         break;
 
     default:
         break;
     }
-    return 1; // 表示继续
+    return 1; // 统一返回1，循环由 m_quit 控制
 }
 
 // 基础主循环启动函数
 int MediaPlayer::runMainLoop() {
-    cout << "MediaPlayer: Starting main loop (event handling and video render trigger)." << endl;
-
-    // 只在有视频流时才启动视频渲染线程
-    if (videoStreamIndex >= 0) {
-        // 启动视频渲染线程 (在循环前启动)
-        // 视频渲染线程在此启动（而不是构造阶段），是为了将“对象构建/数据准备”与“对象运行/用户交互”分离
-        m_videoRenderthread = SDL_CreateThread(video_render_thread_entry, "VideoRenderThread", this);
-        if (!m_videoRenderthread) {
-            cerr << "MediaPlayer Error: Could not create video render thread." << endl;
-            m_quit = true; // 向其他线程发出退出信号
-            // 确保在返回错误之前其他线程已加入
-            if (m_videoDecodeThread) SDL_WaitThread(m_videoDecodeThread, nullptr);
-            if (m_demuxThread) SDL_WaitThread(m_demuxThread, nullptr);
-            return -1;
-        }
-    }
+    cout << "MediaPlayer: Starting main loop..." << endl;
 
     SDL_Event event;
-    Uint64 last_window_check = SDL_GetTicks64();
-    // 增加检查间隔，因为渲染线程也在检查，此处只是保底
-    const Uint64 WINDOW_CHECK_INTERVAL = 1000;      // 每秒检查一次窗口状态
-
     while (!m_quit) {
-        // 处理 SDL 事件
-        // 使用 SDL_WaitEventTimeout 避免CPU空转
-        if (SDL_WaitEventTimeout(&event, 100)) {    // 等待最多 100 毫秒的事件
-            if (handle_event(event) == 0) {         // handle_event 返回 0 退出
-                m_quit = true;                      // 如果 handle_event 决定退出，请确保设置 m_quit
-            }
-        }
-
-        // 定期检查窗口状态（即使没有事件），作为保底刷新机制
-        Uint64 current_time = SDL_GetTicks64();
-        if (current_time - last_window_check > WINDOW_CHECK_INTERVAL) {
-            if (m_videoRenderer && !m_pause) { // 暂停时不需要主循环主动刷新
-                // 主动刷新显示，确保在没有焦点时也能正常显示
-                //cout << "MediaPlayer MainLoop: Periodic video render check." << endl;
-                m_videoRenderer->refresh();
-            }
-            last_window_check = current_time;
-        }
-        // 再次检查 m_quit 以防它被另一个线程设置或者发生超时
-        if (m_quit) break;
+        // 使用 WaitEvent, 它会被自定义事件唤醒
+        SDL_WaitEvent(&event);
+        handle_event(event);
     }
 
-    cout << "MediaPlayer: Main loop requested to quit." << endl;
-    // m_videoRenderthread 将在析构函数中被join。
-    // 其他线程（demux、video_decode）也会检查 m_quit 并退出。
-    // 它们的join也在析构函数中处理。
+    cout << "MediaPlayer: Main loop finished." << endl;
     return 0;
 }
 
@@ -522,13 +481,18 @@ void MediaPlayer::cleanup() {
         std::lock_guard<std::mutex> lock(m_pause_mutex);
         m_pause_cond.notify_all(); // 唤醒可能在暂停中等待的线程
     }
-    // 唤醒等待队列的线程
+    // 2. 唤醒所有等待队列中的线程
     if (m_videoPacketQueue) m_videoPacketQueue->signal_eof();
     if (m_audioPacketQueue) m_audioPacketQueue->signal_eof();
     if (m_videoFrameQueue) m_videoFrameQueue->signal_eof();
     if (m_audioFrameQueue) m_audioFrameQueue->signal_eof();
 
-    // 2、等待所有线程结束
+    // 为了确保在SDL_WaitEvent中等待的主线程也能退出，再推一个退出事件
+    SDL_Event event;
+    event.type = FF_QUIT_EVENT;
+    SDL_PushEvent(&event);
+
+    // 3、等待所有线程结束
     // 先等待生产者线程，再等待消费者线程，避免潜在死锁
     cout << "MediaPlayer: Waiting for threads to finish..." << endl;
     if (m_demuxThread) {
@@ -541,15 +505,15 @@ void MediaPlayer::cleanup() {
         SDL_WaitThread(m_videoDecodeThread, nullptr);
         cout << "MediaPlayer: Video decode thread finished." << endl;
     }
+    if (m_videoRenderthread) {
+        cout << "MediaPlayer: Waiting for video render thread to finish..." << endl;
+        SDL_WaitThread(m_videoRenderthread, nullptr);
+        cout << "MediaPlayer: Refresh thread finished." << endl;
+    }
     if (m_audioDecodeThread) {
         cout << "MediaPlayer: Waiting for audio decode thread to finish..." << endl;
         SDL_WaitThread(m_audioDecodeThread, nullptr);
         cout << "MediaPlayer: Audio decode thread finished." << endl;
-    }
-    if (m_videoRenderthread) {
-        cout << "MediaPlayer: Waiting for refresh thread to finish..." << endl;
-        SDL_WaitThread(m_videoRenderthread, nullptr);
-        cout << "MediaPlayer: Refresh thread finished." << endl;
     }
     if (m_audioRenderThread) {
         cout << "MediaPlayer: Waiting for audio render thread to finish..." << endl;
@@ -559,7 +523,7 @@ void MediaPlayer::cleanup() {
     cout << "MediaPlayer: All threads have been joined. Cleaning up resources..." << endl;
     // 线程已全部停止，按逻辑顺序释放所有资源
 
-    // 3. 释放SDL渲染器
+    // 4. 释放SDL渲染器
     // 销毁Texture, Renderer, Window
     // SDL渲染器依赖FFmpeg信息，必须先于FFmpeg清理
     if (m_audioRenderer) {
@@ -571,7 +535,7 @@ void MediaPlayer::cleanup() {
         cout << "MediaPlayer: Video Renderer cleaned up." << endl;
     }
 
-    // 4. 释放FFmpeg核心资源
+    // 5. 释放FFmpeg核心资源
     cleanup_ffmpeg_resources();
 
     // 释放队列和时钟
@@ -789,14 +753,10 @@ int MediaPlayer::video_render_thread_entry(void* opaque) {
 
 int MediaPlayer::video_render_func() {
     cout << "MediaPlayer: VideoRenderThread started." << endl;
-    if (!m_renderingVideoFrame) { // 确保 shell 已分配
+    if (!m_renderingVideoFrame) {
         cerr << "MediaPlayer VideoRenderThread Error: m_renderingVideoFrame is null." << endl;
         return -1;
     }
-
-    // 状态跟踪变量
-    Uint64 last_refresh_time = SDL_GetTicks64();
-    const Uint64 FORCE_REFRESH_INTERVAL = 500;  // 强制刷新间隔(ms)
 
     while (!m_quit) {
         // 暂停处理逻辑
@@ -807,35 +767,47 @@ int MediaPlayer::video_render_func() {
         if (m_quit) break;
 
         // 尝试从队列获取新帧；使用带超时的pop，防止永久阻塞
-        // 等待时间为10ms，提高UI的响应速度
-        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, 10);
+        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, 100);
 
         if (got_new_frame) {
-            // 有新帧，正常渲染
-            if (!m_videoRenderer->renderFrame(m_renderingVideoFrame)) {
-                cerr << "MediaPlayer VideoRenderThread: renderFrame failed." << endl;
-                m_quit = true; // 渲染出错，退出播放
+            // 计算需要延迟多久
+            double delay = m_videoRenderer->calculateSyncDelay(m_renderingVideoFrame);
+            if (delay > 0.0) {
+                SDL_Delay(static_cast<Uint32>(delay * 1000.0));
             }
-            frame_cnt++;
-            av_frame_unref(m_renderingVideoFrame);  // 使用后 unref 解引用，以便 shell 重用
-            last_refresh_time = SDL_GetTicks64();   // 成功渲染后更新刷新时间
+
+            // 如果已经因为 m_quit=true 被唤醒，检查一下再发事件
+            if (m_quit) break;
+
+            // 准备渲染数据 (sws_scale等)，这是一个CPU密集型操作，适合放在该工作线程
+            // 只把数据准备好，但不呈现
+            if (!m_videoRenderer->prepareFrameForDisplay(m_renderingVideoFrame)) {
+                cerr << "MediaPlayer VideoRenderThread: prepareFrameForDisplay failed." << endl;
+                // 不一定是致命错误，可以继续
+            }
+
+            // 发送刷新事件通知主线程
+            SDL_Event event;
+            event.type = FF_REFRESH_EVENT;
+            SDL_PushEvent(&event);
+
+            av_frame_unref(m_renderingVideoFrame);
         }
         else {
-            // 获取帧失败 (超时或EOF)
+            // 如果队列空了且是EOF，则线程退出
             if (m_videoFrameQueue->is_eof()) {
                 cout << "MediaPlayer VideoRenderThread: Frame queue EOF and empty. Exiting." << endl;
                 break;
             }
-
-            // 检查是否有来自主线程的刷新请求
-            auto* sdl_renderer = dynamic_cast<SDLVideoRenderer*>(m_videoRenderer.get());
-            
-            if (sdl_renderer && sdl_renderer->isRefreshRequested()) {
-                cout << "MediaPlayer: Handling refresh request." << endl;
-                m_videoRenderer->refresh(); // 渲染线程自己调用refresh
-            }
+            // 其他情况（如超时），循环继续，等待下一帧
         }
     }
+
+    // 线程退出前，发送一个最后的退出信号，确保主循环能被唤醒并退出
+    SDL_Event event;
+    event.type = FF_QUIT_EVENT;
+    SDL_PushEvent(&event);
+
     cout << "MediaPlayer: Video render thread finished. Total frames rendered: " << get_frame_cnt() << endl;
     return 0;
 }
