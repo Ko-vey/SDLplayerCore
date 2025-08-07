@@ -135,7 +135,7 @@ void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
 }
 
 void MediaPlayer::init_sdl_video_renderer() {
-    cout << "MediaPlayer: Initializing SDL renderer..." << endl;
+    cout << "MediaPlayer: Initializing SDL video renderer..." << endl;
 
     // 总是创建 SDLVideoRenderer 实例
     auto sdl_renderer = std::make_unique<SDLVideoRenderer>();
@@ -172,13 +172,13 @@ void MediaPlayer::init_sdl_video_renderer() {
     }
     // 如果视频和音频流都没有，则不创建渲染器
     else {
-        cout << "MediaPlayer: No video or audio streams found. Skipping renderer preparation." << endl;
+        cout << "MediaPlayer: No video or audio streams found. Skipping video renderer initialization." << endl;
         return; // 在这种情况下，m_videoRenderer 将保持 nullptr
     }
 
     // 初始化成功，将准备好的、但尚未初始化的渲染器移交给成员变量
     m_videoRenderer = std::move(sdl_renderer);
-    cout << "MediaPlayer: SDL renderer component prepared successfully." << endl;
+    cout << "MediaPlayer: SDL video renderer component initialized successfully." << endl;
 }
 
 // 初始化SDL音频渲染器
