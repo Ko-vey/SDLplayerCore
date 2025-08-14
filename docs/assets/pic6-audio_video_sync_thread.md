@@ -3,36 +3,59 @@
 ```mermaid
 sequenceDiagram
     autonumber
+    
     participant AudioRenderThread as 音频渲染线程
     participant Clock as 同步时钟<br/>(ClockManager)
     participant VideoRenderThread as 视频渲染线程
+    participant MainThread as 主线程<br/>(事件循环)
     participant VideoFrameQueue as 视频帧队列
-    participant SDL as SDL_Delay / Present
     participant VideoRenderer as SDLVideoRenderer
+    participant SDL as SDL API
 
     loop 每次音频输出
         AudioRenderThread ->> Clock: setAudioClock(frame.pts)
-        AudioRenderThread ->> SDL_QueueAudio : 推送 PCM
+        note right of AudioRenderThread: 实际播放时间点会由<br/>ClockManager根据SDL<br/>音频缓冲区大小校正
+        AudioRenderThread ->> SDL: SDL_QueueAudio(pcm)
     end
 
-    loop 视频同步主循环
-        VideoRenderThread ->> VideoFrameQueue: pop(frame, 100 ms)
+    loop 视频同步线程循环
+        VideoRenderThread ->> VideoFrameQueue: pop(frame, 100 ms)
         alt 已取到新帧
-            VideoRenderThread ->> VideoRenderThread: pts = calcPTS(frame)
-            VideoRenderThread ->> Clock: master = getMasterClockTime()
-            VideoRenderThread ->> VideoRenderThread: delay = pts - master
-            alt delay > 0 (视频超前，等待)
-                VideoRenderThread ->> SDL: SDL_Delay(min(delay, MAX))
-            else delay < -threshold (视频落后)
-                Note right of VideoRenderThread: （可选）丢帧以追赶
+            VideoRenderThread ->> VideoRenderer: delay = calculateSyncDelay(frame)
+            rect rgb(230, 230, 255)
+                note over VideoRenderer, Clock: calculateSyncDelay 内部实现
+                VideoRenderer ->> Clock: setVideoClock(frame.pts)
+                VideoRenderer ->> Clock: master = getMasterClockTime()
             end
-            VideoRenderThread ->> VideoRenderer: renderFrame(frame)
-        else 未取到新帧
-            alt 需要强制刷新 (详见下节)
-                VideoRenderThread ->> VideoRenderer: refresh()
-            else
-                VideoRenderThread -->> VideoRenderThread: continue
+            
+            alt delay > 0 (视频超前)
+                VideoRenderThread ->> SDL: SDL_Delay(delay)
+            else 视频准时或落后 (delay <= 0)
+                Note over VideoRenderThread: 跳过等待，立即处理当前帧，<br>通过快速消费队列中的帧来追赶时钟
+            end
+
+            VideoRenderThread ->> VideoRenderer: prepareFrameForDisplay(frame)
+            note over VideoRenderer: 转换色彩空间(sws_scale)，<br/>为纹理准备好YUV数据
+            
+            VideoRenderThread ->> MainThread: SDL_PushEvent(FF_REFRESH_EVENT)
+        else 未取到新帧 (队列超时或为空)
+            alt 视频播放已结束 (EOF)
+                 VideoRenderThread ->> MainThread: SDL_PushEvent(FF_QUIT_EVENT)
+                 note over VideoRenderThread: 线程准备退出
+            else 取帧超时
+                 VideoRenderThread -->> VideoRenderThread: continue
             end
         end
     end
+
+    loop 主线程事件循环
+        MainThread ->> SDL: SDL_WaitEvent()
+        alt 收到 FF_REFRESH_EVENT
+            MainThread ->> VideoRenderer: displayFrame()
+            note over VideoRenderer: 内部调用 SDL_UpdateYUVTexture<br/>和 SDL_RenderPresent()
+        else 收到 SDL_WINDOWEVENT (如窗口大小改变、暴露)
+            MainThread ->> VideoRenderer: refresh()
+        end
+    end
+
 ```

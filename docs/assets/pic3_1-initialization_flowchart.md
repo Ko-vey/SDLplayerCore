@@ -58,8 +58,8 @@ graph TD
         StartThreads["4、启动工作线程 (start_threads)"]:::mainFunc
         subgraph " "
             direction TB
-            StartThreads --> CreateDemuxThread["创建解复用线程"]:::thread
-            StartThreads --> CreateVideoDecodeThread["创建视频解码线程"]:::thread
+            StartThreads --> CreateDemuxThread["创建解封装线程"]:::thread
+            StartThreads --> CreateVideoDecodeThread["创建视频解码/渲染线程"]:::thread
             StartThreads --> CreateAudioThreads["创建音频解码/渲染线程"]:::thread
         end
         
