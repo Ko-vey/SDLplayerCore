@@ -12,9 +12,9 @@
   <img src="https://img.shields.io/badge/Platform-Windows-informational.svg" alt="Platform: Windows">
 </p>
 
-**A C++ audio/video player core designed for learning and practice, helping you to deeply understand the multi-threaded application of FFmpeg and SDL.**
+**A lightweight C++ audio/video player core, helping you to deeply understand the multi-threaded application of FFmpeg and SDL.**
 
-![SDLplayerCore Player Screenshot](../docs/assets/pic1-program_run.png)
+![Screenshot of the SDLplayerCore Player Interface](../docs/assets/screenshot-program-run.png)
 
 ## Table of Contents
 
@@ -39,12 +39,13 @@
 
 ## Introduction
 
-`SDLplayerCore` is a lightweight audio/video player developed with C++11, FFmpeg 7, and SDL2. It primarily targets the Windows platform and serves as an excellent project for hands-on practice in audio and video development.
+`SDLplayerCore` is a lightweight audio/video player developed with C++11, FFmpeg 7, and SDL2. It primarily targets the Windows platform and serves as an excellent project for hands-on practice and learning in audio and video development. *Note that the main goal of this project is for teaching and demonstration purposes, not to create a full-featured daily player to replace mature products like VLC or MPC.*
 
 Currently, the project implements:
 - **Buffer queue** and **flow control** design in audio/video playback
 - Core **audio/video synchronization**
 - **Play/Pause** logic
+- **Window resizing**
 
 Through this project, developers can learn:
 
@@ -58,16 +59,21 @@ Through this project, developers can learn:
 
 The following GIF demonstrates the player's functionality, including playing video and audio-only files, window resizing, and pause/resume capabilities.
 
-![Player running demonstration](../docs/assets/pic10-program_run.gif)
+![Animated Demo of SDLplayerCore Player's Operation and Features](../docs/assets/demo-program-run.gif)
 
 ## Architecture Overview
 
 This project adopts a multi-threaded "producer-consumer" model, decoupling the playback process into five core threads. These threads exchange data through thread-safe buffer queues.
 
-> For more detailed interaction logic, sequence diagrams, and design decisions, please refer to the
-> [**Detailed Design Document - DESIGN.md**](../docs/DESIGN.md).
+> **About design and implementation**
+> Want to learn more about the player's architecture, data flow, and core mechanisms (such as audio & video synchronization, flow control, etc.), 
+> please refer to the **[Detailed Design Document (DESIGN.md)](../docs/DESIGN.md)**.
 
-![Core Modules and Data Flow Diagram](../docs/assets/pic2-basic_architecture.svg)
+> **About Challenges & Solutions**
+> During the development process, a series of complex technical challenges that influenced the project's final architecture were overcome. In the selected representative cases below, the process from problem diagnosis to final resolution is documented, briefly showcasing the project's practical details in multithreading, performance, and stability.
+> For details, see **[Core Development Challenges Explained (CHALLENGES.md)](../docs/CHALLENGES.md)**
+
+![Data Flow and Basic Architecture Flowchart](../docs/assets/flow-basic-architecture.svg)
 
 > **About the Diagrams**
 > <details>
@@ -107,7 +113,7 @@ Before compiling and running the program, ensure your development environment me
 
 2.  **Install Dependencies**
 
-    This project depends on FFmpeg 7 and SDL2. There are two ways to configure them:
+    This project depends on **FFmpeg 7** and **SDL2**. There are two ways to configure them:
 
     **Method 1: Use vcpkg**
 
@@ -152,7 +158,7 @@ Before compiling and running the program, ensure your development environment me
         - **If using vcpkg:**
             ```bash
             # -DCMAKE_TOOLCHAIN_FILE points to vcpkg's toolchain file
-            cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=[vcpkg_path]/scripts/build/systems/vcpkg.cmake
+            cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=[vcpkg_path]/scripts/buildsystems/vcpkg.cmake
 
             # Compile
             cmake --build build
@@ -290,8 +296,8 @@ The realization of this project would not have been possible without the followi
 ### Learning and Reference Resources
 
 - **Lei Xiaohua's (also known as Leixiaohua) Audio and Video Technology Blog** - A profound tribute to the late Dr. Lei Xiaohua, a trailblazer in China's audio-visual technology field who passed away prematurely. His article [《最简单的基于FFMPEG+SDL的视频播放器 ver2 （采用SDL2.0）》 (The simplest video player based on FFMPEG+SDL ver2 (using SDL2.0))](https://blog.csdn.net/leixiaohua1020/article/details/38868499) and its series have been the starting point for countless audio-visual developers in China and served as the initial inspiration for this project.
-- [**ffplay.c Source Code**](https://github.com/FFmpeg/FFmpeg/blob/master/fftools/ffplay.c) - The official player implementation provided by FFmpeg. It is a classic example for learning the core logic of a player, such as A/V synchronization and multithreaded processing.
-- [**FFmpeg Development Tutorial for Beginners (Zhihu)**](https://zhuanlan.zhihu.com/p/682106665) - An excellent C++ FFmpeg development tutorial for beginners, helping them to understand basic audio/video concepts step-by-step and build a basic demo.
+- [**ffplay.c Source Code**](https://github.com/FFmpeg/FFmpeg/blob/master/fftools/ffplay.c) - The official player implementation provided by FFmpeg. It is the most authoritative and classic example for learning the core logic of a player, such as A/V synchronization and multithreaded processing.
+- [**FFmpeg Development Getting Started Tutorial (Zhihu)**](https://zhuanlan.zhihu.com/p/682106665) - An excellent tutorial for C++ FFmpeg development, especially suitable for beginners who are not familiar with the FFmpeg API. It helps you understand A/V concepts and quickly set up and run your first demo.
 
 ### Productivity Tools
 

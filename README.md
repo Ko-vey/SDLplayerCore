@@ -1,5 +1,5 @@
 <p align="right">
-  <a href="./.github/README.md"><strong>English</strong></a>
+  <a href=".github/README.md"><strong>English</strong></a>
 </p>
 
 # SDLplayerCore
@@ -12,9 +12,9 @@
   <img src="https://img.shields.io/badge/Platform-Windows-informational.svg" alt="Platform: Windows">
   </p>
 
-**一款专为学习和实践打造的 C++ 音视频播放器核心，助你深入理解 FFmpeg 与 SDL 的多线程应用。**
+**一款轻量级的 C++ 音视频播放器核心，助你深入理解 FFmpeg 与 SDL 的多线程应用。**
 
-![SDLplayerCore 播放器截图](docs/assets/pic1-program_run.png)
+![SDLplayerCore 播放器运行界面截图](docs/assets/screenshot-program-run.png)
 
 ## 目录
 
@@ -39,7 +39,7 @@
 
 ## 项目简介
 
-`SDLplayerCore` 是一款基于 C++11、FFmpeg7 和 SDL2 开发的轻量级音视频播放器。它主要面向Windows平台，同时也是一个非常适合用于实践的音视频项目。
+`SDLplayerCore` 是一款基于 C++11、FFmpeg7 和 SDL2 开发的轻量级音视频播放器。它主要面向Windows平台，同时也是一个非常适合用于实践的音视频项目。*注意，本项目的主要目标是教学和演示，而不是打造一个功能完备、可以替代VLC或MPC等成熟产品的日常播放器。*
 
 该项目目前实现了:
 - 音视频播放中的**缓存队列**和**流量控制**设计
@@ -47,6 +47,8 @@
 - 核心**音视频同步**
 
 - **播放/暂停**逻辑
+
+- **窗口画面的尺寸调整**功能
 
 开发者可以通过这个项目学习到：
 
@@ -64,25 +66,32 @@
 
 下图展示了播放器播放视频和纯音频文件、窗口拉伸、暂停/恢复的功能。
 
-![播放器运行的展示图](docs/assets/pic10-program_run.gif)
+![SDLplayerCore 播放器的运行与功能动态展示](docs/assets/demo-program-run.gif)
 
 ## 架构概览
 
 本项目采用多线程“生产者-消费者”模型，将播放流程解耦为5个核心线程，它们之间通过线程安全的缓存队列进行数据交换。
 
-> 更详细的交互逻辑、时序关系和设计决策，请参阅
-> [**详细设计文档 - DESIGN.md**](docs/DESIGN.md)。
+> **关于设计与实现**
+> 想要深入了解本播放器的架构、数据流和核心机制（如音视频同步、流量控制等），
+> 请参阅 **[详细设计文档 (DESIGN.md)](docs/DESIGN.md)**。
 
-![核心模块与数据流图](docs/assets/pic2-basic_architecture.svg)
+> **关于挑战与解决方案**
+> 在开发过程中，攻克了一系列复杂且影响项目最终架构的技术难题。在以下几个精选的最具代表性的案例中，记录了从问题诊断到最终解决的过程，并简要展示了本项目在多线程、性能和稳定性方面的实践细节。
+> 详情请见 **[核心开发挑战解析 (CHALLENGES.md)](docs/CHALLENGES.md)**
+
+![数据流与基本架构流程图](docs/assets/flow-basic-architecture.svg)
 
 > **关于图表**
 > <details>
 >   <summary>点击查看图表源文件与编辑说明</summary>
 > 
->   本项目的架构图和流程图使用 [Mermaid](https://mermaid.js.org/) 和 [Draw.io](https://www.drawio.com/) 绘制。
->   在文档中直接展示的插图为 `.svg` 图片文件，对应的同名源文件 (`.drawio` 及 部分以 `.md` 格式储存的 `mermaid` 源代码) 存放在 `docs/assets/` 目录下。
->   如需修改，请优先编辑 `.md` 文件中的 `mermaid` 源代码、并将其导入`.drawio` 源文件、调整后导出为 `.svg` 图片文件，更新文档内的插图对应文件路径，然后将各个新文件一并提交。
+> 本项目中的架构图和流程图是使用 [Mermaid](https://mermaid.js.org/) 和 [Draw.io](https://www.drawio.com/) 绘制的。
+> 
+> 文档内直接展示的插图为 `.svg` 格式，其对应的源文件 (`.drawio` 文件以及部分以 `.md` 格式存储的 `mermaid` 源码) 存放在 `docs/assets/` 目录下。
+> 如需修改图表，推荐的流程是：优先编辑 `.md` 文件中的 `mermaid` 源代码，将其导入对应的 `.drawio` 源文件进行调整，然后导出为新的 `.svg` 图片，并更新文档中的图片路径，最后将所有相关文件一并提交。
 > </details>
+
 
 ## 已有功能
 
@@ -116,7 +125,7 @@
 
 2. **安装依赖项**
 
-    本项目依赖于 FFmpeg7 和 SDL2。有两种方式来配置它们：
+    本项目依赖于 **FFmpeg7** 和 **SDL2**。有两种方式来配置它们：
 
     **方式一：使用 vcpkg**
 
@@ -183,7 +192,7 @@
 
 ```bash
 SDLplayerCore/
-├── .gitee/               # Gitee 平台相关配置
+├── .github/              # Github 平台的相关配置
 ├── CMakeLists.txt        # CMake 配置文件，定义项目和依赖项
 ├── README.md             # 项目指南 (本文档)
 ├── LICENSE               # 许可证文件
@@ -289,9 +298,9 @@ SDLplayerCore/
 
 - **雷霄骅（雷神）的音视频技术博客** - 在此向英年早逝的国内音视频技术领路人雷霄骅博士表示崇高致敬。他的[《最简单的基于FFMPEG+SDL的视频播放器 ver2 （采用SDL2.0）》](https://blog.csdn.net/leixiaohua1020/article/details/38868499)及其系列文章是国内无数音视频开发者入门的启蒙教程，也是本项目的起点。
 
-- [**ffplay.c 源码**](https://github.com/FFmpeg/FFmpeg/blob/master/fftools/ffplay.c) - FFmpeg官方提供的播放器实现，它是学习音画同步、多线程处理等播放器核心逻辑的经典范例。
+- [**ffplay.c 源码**](https://github.com/FFmpeg/FFmpeg/blob/master/fftools/ffplay.c) - FFmpeg官方提供的播放器实现，它是学习音画同步、多线程处理等播放器核心逻辑的最权威且最经典的范例。
 
-- [**FFmpeg开发入门教程 (知乎)**](https://zhuanlan.zhihu.com/p/682106665) - 一个出色的 C++ FFmpeg 开发入门教程，有助于初学者一步步理解基础的音视频概念并构建出基本demo。
+- [**FFmpeg开发入门教程 (知乎)**](https://zhuanlan.zhihu.com/p/682106665) - 一个出色的 C++ FFmpeg 开发入门教程，尤其适合对FFmpeg API不熟悉的初学者，可以帮助理解音视频概念、并快速搭建运行第一个demo。
 
 ### 生产力工具
 - 本项目的顺利完成，还得益于开发流程中对各类 **大型语言模型 (LLM, Large Language Model)** 辅助工具的整合与应用。它们在本项目的信息检索、方案设计、代码实现、文档撰写等多个环节中，提供了无数指引和帮助，极大提升了本项目的开发效率和质量。
