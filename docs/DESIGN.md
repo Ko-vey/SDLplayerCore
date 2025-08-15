@@ -100,7 +100,7 @@
 
 数据流的 **两级缓冲（数据包队列 + 数据帧队列）** 机制是本播放器的关键设计之一。它有效地隔离了 I/O、解码和渲染三个阶段，解决了各环节生产者与消费者速率不匹配的问题，确保播放流畅。
 
-![核心模块与数据流图](assets/pic2-basic_architecture.svg)
+![数据流与基本架构流程图](assets/flow-basic-architecture.svg)
 
 ### 1.2 初始化流程
 
@@ -113,14 +113,13 @@
 
 初始化流程示意图如下：
 
-![初始化流程-小图](assets/pic3_1-initialization_flowchart.svg)
+![SDLplayerCore 程序初始化的流程图](assets/flow-initialization.svg)
 
 ### 1.3 运行时数据流与线程协作
 
 初始化完成后，数据便开始在各个工作线程间流动。整个过程就像一条流水线：
 
-![总体流程-主图](assets/pic3_2-overall_core_flowchart.svg)
-
+![SDLplayerCore 数据流与总体架构流程图](assets/flow-overall-core.svg)
 
 1. **解封装线程 (DemuxThread)**
 
@@ -204,7 +203,7 @@
 
 当解封装线程（生产者）试图向一个已满的 `PacketQueue` 推入数据时，交互流程如下：
 
-![缓存队列对生产者的阻塞-示意图](assets/pic4-queue_producer_block.svg)
+![缓存队列对生产者阻塞的线程交互图](assets/sequence-queue-producer-block.svg)
 
 **事件说明：**
 
@@ -219,7 +218,7 @@
 
 当解码线程（消费者）试图从一个空的 `PacketQueue` 中取出数据时，交互流程如下。特别地，本播放器的 `pop` 操作带有一个超时机制，避免无限期死等。
 
-![缓存队列对消费者的阻塞-示意图](assets/pic5-queue_thread-consumer_block.svg)
+![缓存队列对消费者阻塞的线程交互图](assets/sequence-queue-consumer-block.svg)
 
 | # | 动作  | 说明  |
 | - | ------- | ------------ |
@@ -288,7 +287,7 @@
 
 下面展示音频主时钟驱动的音画同步线程交互图：
 
-![音画同步机制的线程交互图](assets/pic6-audio_video_sync_thread.svg)
+![音画同步机制的线程交互图](assets/sequence-av-sync.svg)
 
 **事件说明：**
 
@@ -470,7 +469,7 @@
 
 下图展示了从用户触发暂停到恢复播放的完整多线程交互过程。
 
-![暂停播放机制-线程交互图](assets/pic8-pause_resume_thread.svg)
+![暂停/恢复播放机制的线程交互图](assets/sequence-pause-resume.svg)
 
 **交互关键点**
 
@@ -543,7 +542,7 @@
 
 从用户点击关闭按钮到所有线程被成功 join 的过程，可以通过以下序列图展示。下图描绘了主线程、MediaPlayer 析构函数、各工作线程以及同步组件之间的关键交互。
 
-![优雅退出机制-线程交互图](assets/pic9-shutdown_thread_interaction.svg)
+![优雅退出机制的线程交互图](assets/sequence-graceful-shutdown.svg)
 
 **交互关键点说明**
 
