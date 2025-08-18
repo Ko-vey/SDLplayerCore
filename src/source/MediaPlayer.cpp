@@ -59,8 +59,8 @@ MediaPlayer::MediaPlayer(const string& filepath) :
         cout << "MediaPlayer: Initialized successfully. All threads started." << endl;
     }
     catch (const std::exception& e) {
-        // 如果init_components的任何一步抛出异常，都会进入这里。
-        // 此时，对象构造失败，需要确保所有已启动的、非RAII管理的资源（主要是线程）被正确停止。
+        // 如果 init_components 的任何一步抛出异常，都会进入这里。
+        // 此时，对象构造失败，需要确保所有已启动的、非 RAII 管理的资源（主要是线程）被正确停止。
         cerr << "MediaPlayer: CRITICAL: Constructor failed: " << e.what() << endl;
         cleanup();
         throw; // 重新抛出异常，通知调用者(main)构造失败。
@@ -71,7 +71,7 @@ MediaPlayer::MediaPlayer(const string& filepath) :
 void MediaPlayer::init_components(const std::string& filepath) {
     cout << "MediaPlayer: Initializing components..." << endl;
 
-    // 步骤 0: 初始化C++层面的基础组件 (队列, 时钟等)
+    // 步骤 0: 初始化 C++ 层面的基础组件 (队列, 时钟等)
     // 这些操作如果失败 (如 bad_alloc)，会直接抛出异常。
     const int MAX_VIDEO_PACKETS = 100;
     const int MAX_AUDIO_PACKETS = 100;
@@ -86,7 +86,7 @@ void MediaPlayer::init_components(const std::string& filepath) {
     m_clockManager = std::make_unique<ClockManager>();
     cout << "MediaPlayer: Queues and clock manager created." << endl;
 
-    // 步骤 1: 初始化所有FFmpeg相关资源
+    // 步骤 1: 初始化所有 FFmpeg 相关资源
     init_ffmpeg_resources(filepath);
     // 确定流信息后，初始化时钟管理器
     if (m_clockManager) {
@@ -95,7 +95,7 @@ void MediaPlayer::init_components(const std::string& filepath) {
         m_clockManager->init(has_audio, has_video);
     }
 
-    // 步骤 2: 初始化所有SDL相关资源 (渲染器)
+    // 步骤 2: 初始化所有 SDL 相关资源 (渲染器)
     init_sdl_video_renderer();
     init_sdl_audio_renderer();
 
@@ -104,7 +104,7 @@ void MediaPlayer::init_components(const std::string& filepath) {
     start_threads();
 }
 
-// 封装FFmpeg资源的初始化
+// 封装 FFmpeg 资源的初始化
 void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
     cout << "MediaPlayer: Initializing FFmpeg resources..." << endl;
 
@@ -181,7 +181,6 @@ void MediaPlayer::init_sdl_video_renderer() {
     cout << "MediaPlayer: SDL video renderer component initialized successfully." << endl;
 }
 
-// 初始化SDL音频渲染器
 void MediaPlayer::init_sdl_audio_renderer() {
     if (audioStreamIndex < 0) {
         cout << "MediaPlayer: No audio stream found. Skipping audio renderer initialization." << endl;
@@ -338,7 +337,7 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
             m_demuxer->close();
             return -1;  // 视频初始化错误
         }
-        // (未来若需要)可在此添加 SWS Context 的初始化代码
+        // (如果需要)可在此添加 SWS Context 的初始化代码
     }
 
     cout << "MediaPlayer: FFmpeg demuxer and decoders initialization process finished." << endl;
@@ -455,7 +454,7 @@ void MediaPlayer::cleanup_ffmpeg_resources() {
 
     // 2. 清理手动分配的FFmpeg裸指针成员
     if (m_decodingVideoPacket) {
-        // av_frame_free 会自动执行 unref
+        // av_frame_free 会自动执行解引用 unref 操作
         av_packet_free(&m_decodingVideoPacket);
     }
     if (m_renderingVideoFrame) {
@@ -487,7 +486,7 @@ void MediaPlayer::cleanup() {
     if (m_videoFrameQueue) m_videoFrameQueue->signal_eof();
     if (m_audioFrameQueue) m_audioFrameQueue->signal_eof();
 
-    // 为了确保在SDL_WaitEvent中等待的主线程也能退出，再推一个退出事件
+    // 为了确保在 SDL_WaitEvent 中等待的主线程也能退出，再推一个退出事件
     SDL_Event event;
     event.type = FF_QUIT_EVENT;
     SDL_PushEvent(&event);
@@ -521,6 +520,7 @@ void MediaPlayer::cleanup() {
         cout << "MediaPlayer: Audio render thread finished." << endl;
     }
     cout << "MediaPlayer: All threads have been joined. Cleaning up resources..." << endl;
+
     // 线程已全部停止，按逻辑顺序释放所有资源
 
     // 4. 释放SDL渲染器
@@ -567,13 +567,13 @@ void MediaPlayer::cleanup() {
 
 // 解封装线程入口和主函数
 int MediaPlayer::demux_thread_entry(void* opaque) {
-    // 获取MediaPlayer实例指针
+    // 获取 MediaPlayer 实例指针
     return static_cast<MediaPlayer*>(opaque)->demux_thread_func();
 }
 
 int MediaPlayer::demux_thread_func() {
     cout << "MediaPlayer: Demux thread started." << endl;
-    AVPacket* demux_packet = av_packet_alloc();//本地包，用于从解封装器读取
+    AVPacket* demux_packet = av_packet_alloc(); // 本地包，用于从解封装器读取
     if (!demux_packet) {
         cerr << "MediaPlayer DemuxThread Error: Could not allocate demux_packet." << endl;
         if (m_videoPacketQueue) { m_videoPacketQueue->signal_eof(); } // 将 错误 作为EOF 进行传递
@@ -611,7 +611,7 @@ int MediaPlayer::demux_thread_func() {
                 if (m_audioPacketQueue) { m_audioPacketQueue->signal_eof(); }
                 m_quit = true; // 严重错误
             }
-            break;//退出解封装循环
+            break; // 退出解封装循环
         }
 
         if (demux_packet->stream_index == videoStreamIndex) {
@@ -638,7 +638,7 @@ int MediaPlayer::demux_thread_func() {
         av_packet_unref(demux_packet);
     }
 
-    av_packet_free(&demux_packet);//释放本地包
+    av_packet_free(&demux_packet); // 释放本地包
     cout << "MediaPlayer: Demux thread finished." << endl;
 
     // 确保即使循环因 m_quit 退出，EOF也会发送
@@ -715,7 +715,7 @@ int MediaPlayer::video_decode_func() {
                 if (!m_videoFrameQueue->push(decoded_frame)) { // FrameQueue::push 会 ref
                     cerr << "MediaPlayer VideoDecodeThread: Failed to push decoded frame to frame queue." << endl;
                 }
-                av_frame_free(&decoded_frame); // <--- 释放 decode() 分配的 shell
+                av_frame_free(&decoded_frame);
                 // decoded_frame 现在无效
             }
         }
@@ -776,7 +776,7 @@ int MediaPlayer::video_render_func() {
                 SDL_Delay(static_cast<Uint32>(delay * 1000.0));
             }
 
-            // 如果已经因为 m_quit=true 被唤醒，检查一下再发事件
+            // 如果已经因为 m_quit = true 被唤醒，检查一下再发事件
             if (m_quit) break;
 
             // 准备渲染数据 (sws_scale等)，这是一个CPU密集型操作，适合放在该工作线程
@@ -848,7 +848,7 @@ int MediaPlayer::audio_decode_func() {
                         if (!m_audioFrameQueue->push(decoded_frame)) { // FrameQueue::push 会 ref
                             cerr << "MediaPlayer AudioDecodeThread: Failed to push flushed frame to frame queue." << endl;
                         }
-                        // decode() 分配了新的帧或重用了旧的，必须释放其外壳(shell)
+                        // decode() 分配了新的帧 或 重用了旧的，必须释放其外壳(shell)
                         av_frame_free(&decoded_frame);
                     }
                     // 尝试获取下一个冲洗帧
@@ -867,7 +867,7 @@ int MediaPlayer::audio_decode_func() {
                 break; // 退出循环
             }
             else {
-                // pop超时，继续循环
+                // pop 超时，继续循环
                 continue;
             }
         }

@@ -23,9 +23,9 @@
 
 using namespace std;
 
-FFmpegAudioDecoder::FFmpegAudioDecoder() {}
-
-FFmpegAudioDecoder::~FFmpegAudioDecoder() { close(); }
+FFmpegAudioDecoder::~FFmpegAudioDecoder() { 
+    close();
+}
 
 void FFmpegAudioDecoder::close() {
     if (m_codecContext) {

@@ -32,7 +32,7 @@ public:
     // 让编译器的默认析构函数清理所有基本类型成员
     virtual ~ClockManager() = default;
 
-    // 实现 IClockManager 接口
+    // IClockManager 接口实现
     void init(bool has_audio, bool has_video) override;
     void reset() override;
 
@@ -63,9 +63,9 @@ private:
     mutable std::mutex m_mutex;
 
     double m_video_clock_time;
-    double m_audio_clock_time; // 最后推送到队列的音频块的PTS
+    double m_audio_clock_time;
 
-    Uint64 m_start_time; // 使用SDL的高精度计时器
+    Uint64 m_start_time;
     Uint64 m_paused_at;
 
     bool m_paused;
@@ -73,6 +73,6 @@ private:
 
     SDL_AudioDeviceID m_audio_device_id;
     int m_audio_bytes_per_second;
-    bool m_has_audio_stream; // 追踪音频流是否存在
-    bool m_has_video_stream; // 追踪视频流是否存在
+    bool m_has_audio_stream;
+    bool m_has_video_stream;
 };

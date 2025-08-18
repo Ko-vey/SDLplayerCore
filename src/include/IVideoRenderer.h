@@ -20,9 +20,8 @@
 
 #pragma once
 
-#include "IClockManager.h"//时钟管理器接口
+#include "IClockManager.h"
 
-//FFmpeg类型的前向声明
 struct AVFrame;		// 数据帧结构体（包含解码后的视频数据）
 enum AVPixelFormat;	// 像素格式枚举
 
@@ -78,7 +77,7 @@ public:
 	/**
 	 * @brief 将最近一次准备好的视频帧实际渲染到屏幕上。
 	 *
-	 * 此函数执行所有与图形API（如SDL, OpenGL, D3D）相关的操作，包括更新纹理、
+	 * 此函数执行所有与图形API（如SDL, D3D）相关的操作，包括更新纹理、
 	 * 清空渲染器、拷贝纹理到渲染目标并最终呈现画面。它应该使用由 prepareFrameForDisplay()
 	 * 准备和缓存的数据。
 	 *
@@ -96,19 +95,10 @@ public:
 	virtual void close() = 0;
 
 	/**
-	* @brief（可选）当窗口大小改变或者其它需要刷新UI状态时调用。
-	* 对于最小可行播放器，主要通过renderFrame更新内容，该方法可能不急于实现复杂的逻辑。
-	* 但可用于（例如在暂停时、或窗口事件后）触发一次屏幕刷新。
+	* @brief 当窗口大小改变或者其它需要刷新UI状态时调用。
+	* 可用于（例如在暂停时、或窗口事件后）触发一次屏幕刷新。
 	*/
 	virtual void refresh() = 0;
-
-	// 播放/暂停功能主要由 MediaPlayer 控制 IClockManager 来实现。
-	// IVideoRenderer 的 renderFrame 方法会根据 IClockManager 的状态（是否暂停，当前时间）
-	// 来决定如何处理帧。因此，IVideoRenderer 接口本身不需要显式的 play/pause 方法
-	// 来控制渲染逻辑，因为其行为是时钟驱动的。
-	
-	// 若需要 特定的渲染器行为（例如暂停时显式特定图像），则可以添加。
-	// 对于最小可行播放器，此处假设 renderFrame 的同步逻辑会隐式处理暂停。
 
 	/**
 	 * @brief 处理窗口大小调整

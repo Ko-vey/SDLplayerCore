@@ -20,7 +20,6 @@
 
 #pragma once
 
-// FFmpeg类型的前向声明
 struct AVFormatContext;
 struct AVPacket;
 struct AVCodecParameters;
@@ -29,11 +28,11 @@ enum AVMediaType;	// enum
 
 class IDemuxer {
 public:
-	// 虚析构函数对于接口*非常关键*，以确保 后继通过基类指针 删除对象时 资源能被正确清理
-	virtual ~IDemuxer() = default;//=default 告诉编译器为这个虚析构函数生成一个默认的标准实现
+	// 为虚析构函数提供默认的标准实现
+	virtual ~IDemuxer() = default;
 
 	/**
-	 * @brief 打开媒体源（文件路径或者URL）
+	 * @brief 打开媒体源（文件路径）
 	 * @param 
 	 * @return 成功返回true，失败返回false
 	 */
@@ -52,12 +51,11 @@ public:
 	virtual int readPacket(AVPacket* packet) = 0;
 
 	/**
-	 * @brief 获取底层的 AVFormatContext（可能用于获取更详细信息）
+	 * @brief 获取底层的 AVFormatContext（用于获取更详细信息）
 	 * 注意：通常应谨慎暴露底层上下文，但有时有必要与其它FFmpeg组件交互
-	 * 为了更好的抽象，考虑移除这一接口
 	 * @return 指向 AVFormatContext 的指针。若未打开则为 nullptr
 	 */
-	virtual AVFormatContext* getFormatContext() const = 0;// const 表示该函数不能修改类内成员变量（除非变量是mutable的）
+	virtual AVFormatContext* getFormatContext() const = 0;
 
 	/**
 	 * @brief 查找指定媒体类型的流索引
@@ -74,7 +72,7 @@ public:
 	virtual AVCodecParameters* getCodecParameters(int streamIndex)const = 0;
 
 	/**
-	 * @brief 获取时长
+	 * @brief 获取媒体文件的总时长
 	 */
 	virtual double getDuration() const = 0;
 
@@ -85,6 +83,6 @@ public:
 	 */
 	virtual AVRational getTimeBase(int streamIndex) const = 0;
 	
-	//（其他通用解封装器的功能，如获取元数据等）
+	//（其他功能，如获取元数据等）
 	//virtual AVDictionary* getMetadata() const = 0;
 };

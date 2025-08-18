@@ -19,7 +19,7 @@
  */
 
 #include "../include/FFmpegVideoDecoder.h"
-#include <iostream>	// std::cerr，std::cout
+#include <iostream>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -29,13 +29,10 @@ extern "C" {
 
 using namespace std;
 
-FFmpegVideoDecoder::FFmpegVideoDecoder() : m_codecContext(nullptr) {
-	cout << "FFmpegVideoDecoder instance created." << endl;
-}
+FFmpegVideoDecoder::FFmpegVideoDecoder() : m_codecContext(nullptr) {}
 
 FFmpegVideoDecoder::~FFmpegVideoDecoder() {
-	cout << "FFmpegVideoDecoder instance being destroyed." << endl;
-	close();	//确保资源在析构时被释放
+	close();
 }
 
 bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams) {
@@ -68,7 +65,7 @@ bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams) {
 	// 3、拷贝编解码器参数到上下文
 	if (avcodec_parameters_to_context(m_codecContext, codecParams) < 0) {
 		cerr << "FFmpegVideoDecoder::init Error: Could not copy codec parameters to context." << endl;
-		avcodec_free_context(&m_codecContext);//清理已分配的上下文
+		avcodec_free_context(&m_codecContext);
 		return false;
 	}
 
@@ -79,7 +76,7 @@ bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams) {
 	// 4、打开解码器
 	if (avcodec_open2(m_codecContext, codec, nullptr) < 0) {
 		cerr << "FFmpegVideoDecoder::init Error: Could not open codec (" << codec->long_name << endl;
-		avcodec_free_context(&m_codecContext);//清理已分配的上下文
+		avcodec_free_context(&m_codecContext);
 		return false;
 	}
 
@@ -90,13 +87,13 @@ bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams) {
 int FFmpegVideoDecoder::decode(AVPacket* packet, AVFrame** frame) {
 	if (!m_codecContext || m_codecContext->codec_id == AV_CODEC_ID_NONE) {
 		cerr << "FFmpegVideoDecoder::decode Error: Decoder not initialized or has been closed." << endl;
-		return AVERROR(EINVAL);//无效参数或状态
+		return AVERROR(EINVAL); // 无效参数或状态
 	}
 	if (!frame) {
 		cerr << "FFmpegVideoDecoder::decode Error: Output frame pointer (frame) is null." << endl;
 		return AVERROR(EINVAL);
 	}
-	*frame = nullptr; // 确保输出参数被初始化
+	*frame = nullptr; // 确保输出参数被初始化0
 
 	// 步骤 1： 发送数据包到解码器
 	// packet 为 nullptr 表示冲洗解码器（发送EOF信号）
@@ -130,7 +127,7 @@ int FFmpegVideoDecoder::decode(AVPacket* packet, AVFrame** frame) {
 		return 0;
 	}
 	else {
-		av_frame_free(&decoded_frame);	//如果没有成功接收到帧，释放已经分配的 AVFrame
+		av_frame_free(&decoded_frame);	// 如果没有成功接收到帧，释放已经分配的 AVFrame
 		*frame = nullptr;
 		// 如果 ret 是 AVERROR(EAGAIN)（需要更多输入）或 AVERROR_EOF（流结束，没有更多帧），
 		// 这些是预期的返回值，不一定是“错误”。
@@ -146,7 +143,7 @@ int FFmpegVideoDecoder::decode(AVPacket* packet, AVFrame** frame) {
 
 void FFmpegVideoDecoder::close() {
 	if (m_codecContext) {
-		avcodec_free_context(&m_codecContext);	// 释放上下文内存，m_codecContext 会被置为 NULL
+		avcodec_free_context(&m_codecContext);	// 释放上下文内存，m_codecContext 会被置为 nullptr
 		cout << "FFmpegVideoDecoder::close: Codec context closed and freed." << endl;
 	}
 }
@@ -165,7 +162,7 @@ AVPixelFormat FFmpegVideoDecoder::getPixelFormat() const {
 
 AVRational FFmpegVideoDecoder::getTimeBase()const {
 	if (m_codecContext) {
-		//解码器上下文的时间基准通常是从输入流复制过来的
+		// 解码器上下文的时间基准通常从输入流复制过来
 		return m_codecContext->time_base;
 	}
 	return { 0,1 };	// 返回一个表示无效或未初始化的时间基准
@@ -173,8 +170,7 @@ AVRational FFmpegVideoDecoder::getTimeBase()const {
 
 AVRational FFmpegVideoDecoder::getFrameRate()const {
 	if (m_codecContext) {
-		// AVCodecContext->framerate 是解码器认为的帧率，
-		// 它应当从 AVStream->avg_frame_rate 或 AVStream->r_frame_rate 初始化得到的。
+		// AVCodecContext->framerate 是解码器认为的帧率
 		return m_codecContext->framerate;
 	}
 	return { 0,1 };	// 返回一个表示无效或未初始化的帧率

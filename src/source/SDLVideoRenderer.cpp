@@ -19,7 +19,7 @@
  */
 
 #include "../include/SDLVideoRenderer.h"
-#include <algorithm> // For std::max
+#include <algorithm> // std::max
 #include <iostream>
 
 // 如果视频帧比主时钟快，等待。
@@ -77,7 +77,7 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
         return true;
     }
 
-    // Texture尺寸固定为视频原始分辨率
+    // Texture 尺寸固定为视频原始分辨率
     m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING,
                                 m_video_width, m_video_height);
     if (!m_texture) {
@@ -85,7 +85,7 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
         return false;
     }
 
-    // SwsContext只用于色彩转换，不缩放
+    // SwsContext 只用于色彩转换，不缩放
     m_sws_context = sws_getContext(m_video_width, m_video_height, m_decoder_pixel_format,
                                 m_video_width, m_video_height, AV_PIX_FMT_YUV420P,
                                 SWS_BILINEAR, nullptr, nullptr, nullptr);
@@ -94,7 +94,7 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
         return false;
     }
 
-    // 为YUV数据分配内存
+    // 为 YUV 数据分配内存
     m_yuv_frame = av_frame_alloc();
     if (!m_yuv_frame) return false;
     int numBytes = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, m_video_width, m_video_height, 1);
@@ -125,6 +125,7 @@ void SDLVideoRenderer::setSyncParameters(AVRational time_base, double frame_rate
     m_frame_last_pts = 0.0;
 }
 
+// 在工作线程中执行
 double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
     if (!frame || !m_clock_manager) return 0.0;
 
@@ -174,7 +175,7 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
     return delay;
 }
 
-// 在同步线程中执行
+// 在工作线程中执行
 bool SDLVideoRenderer::prepareFrameForDisplay(AVFrame* frame) {
     if (m_is_audio_only || !frame) return false;
 
@@ -188,19 +189,19 @@ bool SDLVideoRenderer::prepareFrameForDisplay(AVFrame* frame) {
         // 非致命错误，可以继续
     }
 
-    // 只做色彩空间转换，准备好YUV数据 (源和目标尺寸都是视频原始尺寸)
+    // 只做色彩空间转换，准备好 YUV 数据 (源和目标尺寸都是视频原始尺寸)
     sws_scale(m_sws_context, (const uint8_t* const*)frame->data, frame->linesize,
             0, m_video_height, m_yuv_frame->data, m_yuv_frame->linesize);
 
     return true;
 }
 
-// 在主线程中执行
+// 显示视频帧；在主线程中执行
 void SDLVideoRenderer::displayFrame() {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_is_audio_only || !m_renderer || !m_texture || !m_yuv_frame) return;
 
-    // 使用已准备好的YUV数据更新纹理
+    // 使用已准备好的 YUV 数据更新纹理
     SDL_UpdateYUVTexture(m_texture, nullptr,
                         m_yuv_frame->data[0], m_yuv_frame->linesize[0],
                         m_yuv_frame->data[1], m_yuv_frame->linesize[1],
@@ -208,7 +209,7 @@ void SDLVideoRenderer::displayFrame() {
 
     // 清空渲染器
     SDL_RenderClear(m_renderer);
-    // 计算居中显示的矩形，让GPU在RenderCopy时进行缩放
+    // 计算居中显示的矩形，让GPU在 RenderCopy() 时进行缩放
     SDL_Rect displayRect = calculateDisplayRect(m_window_width, m_window_height);
     SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect);
     // 显示
@@ -235,7 +236,7 @@ void SDLVideoRenderer::refresh() {
         }
         // 如果有帧，就准备一个包含视频的画面
         else {
-            // 使用 m_last_rendered_frame 的数据重新填充纹理
+            // 使用 m_last_rendered_frame 的数据重新填充纹理，
             // 这样可以从系统造成的纹理内容丢失中恢复
             sws_scale(m_sws_context, (const uint8_t* const*)m_last_rendered_frame->data, m_last_rendered_frame->linesize,
                       0, m_video_height, m_yuv_frame->data, m_yuv_frame->linesize);
@@ -260,7 +261,7 @@ void SDLVideoRenderer::close() {
     std::lock_guard<std::mutex> lock(m_mutex);  // 加锁
 
     if (m_yuv_frame) {
-        av_freep(&m_yuv_frame->data[0]); // 释放由av_image_fill_arrays分配的buffer
+        av_freep(&m_yuv_frame->data[0]); // 释放由 av_image_fill_arrays 分配的 buffer
         av_frame_free(&m_yuv_frame);
         m_yuv_frame = nullptr;
     }

@@ -23,11 +23,11 @@
 #include <string>
 #include <iostream>
 #include <atomic>
-#include <memory>   //智能指针，std::unique_ptr
+#include <memory>   // 智能指针，std::unique_ptr
 #include <mutex>
 #include <condition_variable>
 
-// 前向声明 FFmpeg 类型，用于相关头文件
+// 前向声明 FFmpeg 类型
 struct AVCodecParameters;
 struct AVFrame;
 struct AVPacket;
@@ -102,7 +102,6 @@ public:
     MediaPlayer(const string& filepath);
     virtual ~MediaPlayer();
 
-    //禁用 拷贝构造函数 和 赋值操作符重载
     MediaPlayer(const MediaPlayer& src) = delete;
     MediaPlayer& operator=(const MediaPlayer& rhs) = delete;
 
@@ -132,7 +131,7 @@ private:
     void init_sdl_video_renderer();
     void init_sdl_audio_renderer();
     void start_threads();
-    // 析构和清理资源的辅助函数
+    // 析构和资源清理的辅助函数
     void cleanup_ffmpeg_resources();
     void cleanup();
 };

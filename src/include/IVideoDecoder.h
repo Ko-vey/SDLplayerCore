@@ -22,7 +22,6 @@
 
 #include <string>
 
-// FFmpeg类型的前向声明
 struct AVCodecParameters;	// 编解码器参数结构体
 struct AVPacket;			// 数据包结构体
 struct AVFrame;				// 数据帧结构体
@@ -31,7 +30,6 @@ struct AVRational;			// FFmpeg中用于表示有理数的结构（如时间基准、帧率）
 
 class IVideoDecoder {
 public:
-	// 虚析构函数，确保派生类的正确清理
 	virtual ~IVideoDecoder() = default;
 
 	/**
@@ -45,8 +43,6 @@ public:
 	* @brief 将单个视频包解码为一个视频帧。
 	* 调用者负责管理packet和frame的生命周期。
 	* @param packet 包含待解码的压缩视频数据的 AVPacket。
-	* 若在流结束时获取解码器中剩余的帧（draining the decoder），
-	* 通常是发送一个空的packet（packet->data==nullptr && packet->size==0）给解码器。
 	* @param frame 指向 AVFrame 指针的指针，该指针将被解码后的视频数据填充，
 	* 解码器会从其内部池中分配/获取一个帧。
 	* @return 成功时返回0（帧已解码），若需要更多输入则返回 AVERROR(EAGAIN)，

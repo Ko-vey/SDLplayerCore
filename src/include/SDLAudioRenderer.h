@@ -36,7 +36,6 @@ public:
     SDLAudioRenderer() = default;
     virtual ~SDLAudioRenderer() override;
 
-    // 禁用拷贝构造和赋值
     SDLAudioRenderer(const SDLAudioRenderer&) = delete;
     SDLAudioRenderer& operator=(const SDLAudioRenderer&) = delete;
 
@@ -55,8 +54,8 @@ private:
 
     // 重采样相关
     SwrContext* m_swr_context = nullptr;
-    uint8_t* m_resampled_buffer = nullptr; // 重采样后的数据缓冲区
-    unsigned int m_resampled_buffer_size = 0; // 缓冲区大小
+    uint8_t* m_resampled_buffer = nullptr;      // 重采样后的数据缓冲区
+    unsigned int m_resampled_buffer_size = 0;   // 缓冲区大小
 
     // 目标音频参数
     int m_target_channels = 0;

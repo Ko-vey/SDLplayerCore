@@ -66,7 +66,7 @@ public:
 	virtual double getAudioClockTime() = 0;
 
 	/**
-	* @brief 设置音频硬件参数，供getAudioClockTime()计算使用
+	* @brief 设置音频硬件参数，供 getAudioClockTime() 计算使用
 	*/
 	virtual void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond) = 0;
 

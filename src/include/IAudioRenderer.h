@@ -24,7 +24,6 @@
 #include <atomic>
 #include "IClockManager.h"
 
-// 前向声明 FFmpeg 类型
 struct AVFrame;
 struct AVRational;
 enum AVSampleFormat;

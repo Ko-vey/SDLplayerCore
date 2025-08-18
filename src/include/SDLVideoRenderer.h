@@ -33,13 +33,6 @@ extern "C" {
 #include <libavutil/imgutils.h>
 }
 
-/**
- * @class SDLVideoRenderer
- * @brief IVideoRenderer的一个实现，使用SDL2进行视频渲染。
- *
- * 这个类封装了SDL窗口、渲染器、纹理的创建和管理。
- * 核心功能在renderFrame()中，它包含了与IClockManager协作的视频同步逻辑。
- */
 class SDLVideoRenderer : public IVideoRenderer {
 private:
     SDL_Window* m_window = nullptr;

@@ -53,11 +53,11 @@ bool SDLAudioRenderer::init(int sampleRate, int channels, AVSampleFormat decoder
     SDL_AudioSpec wanted_spec;
     SDL_zero(wanted_spec);
     wanted_spec.freq = sampleRate;
-    wanted_spec.format = AUDIO_S16SYS; // 目标输出为16位有符号音频
+    wanted_spec.format = AUDIO_S16SYS;                  // 目标输出为16位有符号音频
     wanted_spec.channels = channels > 2 ? 2 : channels; // 为简易起见，最多支持立体声
     wanted_spec.silence = 0;
-    wanted_spec.samples = 1024; // 合理的缓冲区大小
-    wanted_spec.callback = nullptr; // 使用Push模式 (SDL_QueueAudio)
+    wanted_spec.samples = 1024;                         // 合理的缓冲区大小
+    wanted_spec.callback = nullptr;                     // 使用Push模式 (SDL_QueueAudio)
 
     // 2. 打开音频设备
     m_audio_device_id = SDL_OpenAudioDevice(nullptr, 0, &wanted_spec, &m_actual_spec, 0);
@@ -157,14 +157,14 @@ bool SDLAudioRenderer::renderFrame(AVFrame* frame, const std::atomic<bool>& quit
             (AVSampleFormat)frame->format, 1);
     }
 
-    // 关键：在推送数据到SDL之前，用当前音频帧的PTS更新音频时钟
+    // 关键：在推送数据到SDL之前，用当前音频帧的 PTS 更新音频时钟
     double pts = (frame->pts == AV_NOPTS_VALUE) ? 0.0 : frame->pts * av_q2d(m_time_base);
     if (pts != 0.0) {
         m_clock_manager->setAudioClock(pts);
     }
 
     // 流量控制：如果SDL队列中的数据过多（例如超过1.5秒），则稍作等待
-    // 这可以防止内存过度消耗，并能更快地响应seek操作
+    // 这可以防止内存过度消耗，并能更快地响应跳转seek操作
     const Uint32 max_queued_size = m_bytes_per_second * 1.5;
     while (SDL_GetQueuedAudioSize(m_audio_device_id) > max_queued_size) {
         // 在等待时检查退出标志
