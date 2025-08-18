@@ -1,4 +1,4 @@
-# SDLplayerCore核心开发挑战解析
+# SDLplayerCore开发核心挑战解析文档
 
 ## 前言
 
@@ -6,7 +6,7 @@
 
 ## 目录
 
-- [SDLplayerCore核心开发挑战解析](#sdlplayercore核心开发挑战解析)
+- [SDLplayerCore开发核心挑战解析文档](#sdlplayercore开发核心挑战解析文档)
   - [前言](#前言)
   - [目录](#目录)
   - [视频播放管线暂停时退出触发死锁 (多线程同步与调试)](#视频播放管线暂停时退出触发死锁-多线程同步与调试)

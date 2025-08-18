@@ -1,4 +1,4 @@
-# SDLplayerCore详细设计文档
+# SDLplayerCore设计细节文档
 
 ## 前言
 
@@ -41,7 +41,7 @@
 
 ## 目录
 
-- [SDLplayerCore详细设计文档](#sdlplayercore详细设计文档)
+- [SDLplayerCore设计细节文档](#sdlplayercore设计细节文档)
   - [前言](#前言)
     - [核心设计理念](#核心设计理念)
   - [目录](#目录)

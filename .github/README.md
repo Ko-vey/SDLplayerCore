@@ -39,9 +39,11 @@
 
 ## Introduction
 
-`SDLplayerCore` is a lightweight audio/video player developed with C++11, FFmpeg 7, and SDL2. It primarily targets the Windows platform and serves as an excellent project for hands-on practice and learning in audio and video development. *Note that the main goal of this project is for teaching and demonstration purposes, not to create a full-featured daily player to replace mature products like VLC or MPC.*
+`SDLplayerCore` is a lightweight audio and video player application developed with C++11, FFmpeg 7, and SDL2. It primarily targets the Windows platform and serves as a complete case study for practical audio/video development.
 
-Currently, the project implements:
+> *Please note that the primary objective of this project is for teaching and demonstration purposes, not to create a full-featured daily-use player that can replace mature products like VLC or MPC.*
+
+The project currently implements the following:
 - **Buffer queue** and **flow control** design in audio/video playback
 - Core **audio/video synchronization**
 - **Play/Pause** logic
@@ -66,12 +68,12 @@ The following GIF demonstrates the player's functionality, including playing vid
 This project adopts a multi-threaded "producer-consumer" model, decoupling the playback process into five core threads. These threads exchange data through thread-safe buffer queues.
 
 > **About design and implementation**
-> Want to learn more about the player's architecture, data flow, and core mechanisms (such as audio & video synchronization, flow control, etc.), 
-> please refer to the **[Detailed Design Document (DESIGN.md)](../docs/DESIGN.md)**.
+> To gain a deep understanding of the player's architecture, data flow, and core mechanisms such as audio-video synchronization and flow control, 
+> please see our **[Design Document (DESIGN.md)](../docs/DESIGN.md)**.
 
 > **About Challenges & Solutions**
-> During the development process, a series of complex technical challenges that influenced the project's final architecture were overcome. In the selected representative cases below, the process from problem diagnosis to final resolution is documented, briefly showcasing the project's practical details in multithreading, performance, and stability.
-> For details, see **[Core Development Challenges Explained (CHALLENGES.md)](../docs/CHALLENGES.md)**
+> Throughout development, we tackled a series of complex technical challenges that shaped the project's final architecture. We have documented a few of the most representative cases—from diagnosis to the final solution—to share our hands-on experience with multithreading, performance, and stability.
+> For a detailed breakdown, check out the **[Core Challenges Document (CHALLENGES.md)](../docs/CHALLENGES.md)**
 
 ![Data Flow and Basic Architecture Flowchart](../docs/assets/flow-basic-architecture.svg)
 
@@ -79,9 +81,11 @@ This project adopts a multi-threaded "producer-consumer" model, decoupling the p
 > <details>
 >   <summary>Click to view diagram source files and editing instructions</summary>
 > 
->   The architecture and flowcharts in this project are created using [Mermaid](https://mermaid.js.org/) and [Draw.io](https://www.drawio.com/).
->   The illustrations displayed directly in the documentation are `.svg` image files. The corresponding source files (`.drawio` and some `mermaid` source code stored in `.md` format) are located in the `docs/assets/` directory.
->   If you need to make modifications, please prioritize editing the `mermaid` source code in the `.md` files, import it into the `.drawio` source file, adjust as needed, and then export it as an `.svg` image file. Update the corresponding file path in the documentation and commit all new files together.
+> The architecture diagrams and flowcharts in this project were created using [Mermaid](https://mermaid.js.org/) and [Draw.io](https://www.drawio.com/).
+> 
+> The illustrations displayed directly within the documentation are in `.svg` format. Their corresponding source files (the `.drawio` files and some `mermaid` source code stored in `.md` format) are located in the `docs/assets/` directory.
+> 
+> If you need to modify the diagrams, the recommended workflow is as follows: first, edit the `mermaid` source code in the `.md` file, import it into the corresponding `.drawio` source file for adjustments, then export it as a new `.svg` image, update the image path in the documentation, and finally, commit all related files together.
 > </details>
 
 ## Features
@@ -107,7 +111,7 @@ Before compiling and running the program, ensure your development environment me
 
 1.  **Clone the project**
     ```bash
-    git clone [https://github.com/Ko-vey/SDLplayerCore.git](https://github.com/Ko-vey/SDLplayerCore.git)
+    git clone https://github.com/Ko-vey/SDLplayerCore.git
     cd SDLplayerCore
     ```
 
@@ -121,7 +125,7 @@ Before compiling and running the program, ensure your development environment me
 
     ```bash
     # (If not already installed) Install vcpkg...
-    git clone [https://github.com/microsoft/vcpkg.git](https://github.com/microsoft/vcpkg.git)
+    git clone https://github.com/microsoft/vcpkg.git
     ./vcpkg/bootstrap-vcpkg.bat # or bootstrap-vcpkg.sh for other systems
 
     # Install dependencies for this project (e.g., for Windows x64)
@@ -187,7 +191,8 @@ SDLplayerCore/
 ├── build/                # (Generated) CMake build directory for intermediate and final files
 ├── docs/                 # Project documentation
 │   ├── assets/           # Image source files, etc., used in documentation
-│   └── DESIGN.md         # Detailed architecture and module design document
+│   ├── CHALLENGES.md     # Core challenges document
+│   └── DESIGN.md         # Design document
 ├── src/                  # Project source code
 │   ├── include/          # Header files (.h)
 │   │   ├── MediaPlayer.h # Main player class definition

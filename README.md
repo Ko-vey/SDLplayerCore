@@ -39,7 +39,9 @@
 
 ## 项目简介
 
-`SDLplayerCore` 是一款基于 C++11、FFmpeg7 和 SDL2 开发的轻量级音视频播放器。它主要面向Windows平台，同时也是一个非常适合用于实践的音视频项目。*注意，本项目的主要目标是教学和演示，而不是打造一个功能完备、可以替代VLC或MPC等成熟产品的日常播放器。*
+`SDLplayerCore` 是一款基于 C++11、FFmpeg7 和 SDL2 开发的轻量级音视频播放器应用。它主要面向Windows平台，同时也是一个完整的音视频开发实践案例。
+
+> *注意，本项目的主要目标是教学和演示，而不是打造一个功能完备、可以替代VLC或MPC等成熟产品的日常播放器。*
 
 该项目目前实现了:
 - 音视频播放中的**缓存队列**和**流量控制**设计
@@ -73,12 +75,12 @@
 本项目采用多线程“生产者-消费者”模型，将播放流程解耦为5个核心线程，它们之间通过线程安全的缓存队列进行数据交换。
 
 > **关于设计与实现**
-> 想要深入了解本播放器的架构、数据流和核心机制（如音视频同步、流量控制等），
-> 请参阅 **[详细设计文档 (DESIGN.md)](docs/DESIGN.md)**。
+> 如果你想要深入了解本播放器的架构、数据流和核心机制（如音视频同步、流量控制等），
+> 请参阅 **[设计细节文档 (DESIGN.md)](docs/DESIGN.md)**。
 
 > **关于挑战与解决方案**
-> 在开发过程中，攻克了一系列复杂且影响项目最终架构的技术难题。在以下几个精选的最具代表性的案例中，记录了从问题诊断到最终解决的过程，并简要展示了本项目在多线程、性能和稳定性方面的实践细节。
-> 详情请见 **[核心开发挑战解析 (CHALLENGES.md)](docs/CHALLENGES.md)**
+> 在开发过程中，我们攻克了一系列复杂且影响项目最终架构的技术难题。我们挑选了其中几个最具代表性的案例，并简要记录了从问题诊断到最终解决的过程，简要展示了本项目在多线程、性能和稳定性方面的实践细节。
+> 详情请见 **[开发核心挑战解析文档 (CHALLENGES.md)](docs/CHALLENGES.md)**
 
 ![数据流与基本架构流程图](docs/assets/flow-basic-architecture.svg)
 
@@ -89,9 +91,9 @@
 > 本项目中的架构图和流程图是使用 [Mermaid](https://mermaid.js.org/) 和 [Draw.io](https://www.drawio.com/) 绘制的。
 > 
 > 文档内直接展示的插图为 `.svg` 格式，其对应的源文件 (`.drawio` 文件以及部分以 `.md` 格式存储的 `mermaid` 源码) 存放在 `docs/assets/` 目录下。
+> 
 > 如需修改图表，推荐的流程是：优先编辑 `.md` 文件中的 `mermaid` 源代码，将其导入对应的 `.drawio` 源文件进行调整，然后导出为新的 `.svg` 图片，并更新文档中的图片路径，最后将所有相关文件一并提交。
 > </details>
-
 
 ## 已有功能
 
@@ -119,7 +121,7 @@
 
 1. **克隆项目**
     ```bash
-    git clone [https://gitee.com/ko-vey/sdlplayer-core.git](https://gitee.com/ko-vey/sdlplayer-core.git)
+    git clone https://gitee.com/ko-vey/sdlplayer-core.git
     cd SDLplayerCore
     ```
 
@@ -199,7 +201,8 @@ SDLplayerCore/
 ├── build/                # (生成) CMake 构建目录，存放中间文件和最终产物
 ├── docs/                 # 项目文档
 │   ├── assets/           # 文档中使用的图片源文件等
-│   └── DESIGN.md         # 详细的架构与模块设计文档
+│   ├── CHALLENGES.md     # 开发核心挑战解析文档
+│   └── DESIGN.md         # 设计细节文档
 ├── src/                  # 项目源代码
 │   ├── include/          # 头文件 (.h)
 │   │   ├── MediaPlayer.h # 播放器主类定义
