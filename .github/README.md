@@ -234,7 +234,6 @@ SDLplayerCore/
     > - **Video:**
     >
     >   - [**Big Buck Bunny (1080p, MP4)**](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4)
-    >   - [**Sample MP4 File (360p, MP4)**](https://file-examples.com/storage/fe43ea960f688bed79dda28/2017/04/file_example_MP4_640_3MG.mp4)
     > - **Audio:**
     >
     >   - [**Sample MP3 File**](https://file-examples.com/index.php/sample-audio-files/sample-mp3-download/)
@@ -255,7 +254,7 @@ SDLplayerCore/
 
 This project primarily serves as a personal learning record and technical showcase. Therefore, I am not actively seeking code contributions (Pull Requests) at this time.
 
-However, any form of **discussion and feedback** is highly welcome! If you encounter any issues, find a bug, or have suggestions and ideas about the project design, please contact me by **creating an Issue**: submit your problem or suggestion on the project's [Issues page](../issues). I will check and respond periodically.
+However, any form of **discussion and feedback** is highly welcome! If you encounter any issues, find a bug, or have suggestions and ideas about the project design, please contact me by **creating an Issue**: submit your problem or suggestion on the project's [Issues page](../../../issues). I will check and respond periodically.
 
 Thank you for your attention and understanding!
 
