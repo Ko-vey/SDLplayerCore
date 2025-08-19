@@ -22,7 +22,6 @@
 
 #include "IVideoDecoder.h"
 
-// 前向声明 FFmpeg 类型，避免在头文件中包含庞大的FFmpeg头文件
 struct AVCodecContext;
 
 class FFmpegVideoDecoder : public IVideoDecoder {
@@ -30,13 +29,12 @@ public:
 	FFmpegVideoDecoder();
 	~FFmpegVideoDecoder() override;
 
-	//禁止拷贝构造函数和赋值操作符
 	FFmpegVideoDecoder(const FFmpegVideoDecoder&) = delete;
 	FFmpegVideoDecoder& operator=(const FFmpegVideoDecoder&) = delete;
 
 	/**
-	* @brief 使用给定的编解码器参数和时钟管理器 初始化视频解码器。
-	* @param codecParams 指向从解复用器获取的视频流的 AVCodecParameters 的指针。
+	* @brief 使用给定的编解码器参数和时钟管理器来初始化视频解码器。
+	* @param codecParams 指向从解封装器获取的视频流的 AVCodecParameters 的指针。
 	* @return 若初始化成功返回 true，否则返回 false。
 	*/
 	bool init(AVCodecParameters* codecParams) override;

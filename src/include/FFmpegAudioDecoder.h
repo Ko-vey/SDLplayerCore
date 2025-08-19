@@ -37,10 +37,9 @@ private:
     AVRational m_timeBase = { 0, 1 };
 
 public:
-    FFmpegAudioDecoder();
+    FFmpegAudioDecoder() = default;
     virtual ~FFmpegAudioDecoder() override;
 
-    // ½ûÓÃ¿½±´ºÍ¸³Öµ
     FFmpegAudioDecoder(const FFmpegAudioDecoder&) = delete;
     FFmpegAudioDecoder& operator=(const FFmpegAudioDecoder&) = delete;
 

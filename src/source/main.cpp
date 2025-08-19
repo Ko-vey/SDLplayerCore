@@ -59,7 +59,7 @@ void remove_all_quotes(std::string& path) {
         // 在字符串中循环查找并删除当前类型的引号
         while ((pos = path.find(quote, pos)) != std::string::npos) {
             // 从找到的位置删除引号（长度为 quote.length()）
-            path.erase(pos, quote.length()); // erase执行后pos指向被删除引号后面的字符
+            path.erase(pos, quote.length()); // erase 执行后 pos 指向被删除引号后面的字符
         }
     }
 }
@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
     }
     else {
         // 模式二：提示用户在控制台输入文件路径
-        std::cout << "Please enter the path to the video file and press Enter:" << std::endl;
+        std::cout << "Please enter the path of media file and press Enter:" << std::endl;
         // 使用 getline 读取可能包含空格的完整路径
         std::getline(std::cin, filepath);
 
@@ -88,8 +88,8 @@ int main(int argc, char* argv[]) {
     // 2. 清理路径中的所有引号
     remove_all_quotes(filepath);
 
-    // (可选) 在这里打印清理后的路径用于调试
-    std::cout << "Cleaned file path: " << filepath << std::endl;
+    // 打印清理后的路径用于调试
+    //std::cout << "Cleaned file path: " << filepath << std::endl;
 
     // 3. 初始化SDL库
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) {

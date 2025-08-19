@@ -1,0 +1,215 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram name="第 1 页" id="1Yl_RgYEbclC4mf_u3So">
+    <mxGraphModel dx="-671" dy="597" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="iAqI1snlVB3uqglqqR-K-1" value="MediaPlayer 初始化总流程" style="whiteSpace=wrap;strokeWidth=2;align=left;verticalAlign=top;fontStyle=1;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1810" y="120" width="848" height="2122" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-2" value="" style="whiteSpace=wrap;strokeWidth=2;align=left;verticalAlign=top;fontStyle=1;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1847" y="1909" width="774" height="208" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-3" value="" style="whiteSpace=wrap;strokeWidth=2;align=left;verticalAlign=top;fontStyle=1;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1914" y="1650" width="640" height="208" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-4" value="init_demuxer_and_decoders() 内部" style="whiteSpace=wrap;strokeWidth=2;align=left;verticalAlign=top;fontStyle=1;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="2048.5" y="719" width="370" height="882" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-5" value="FFmpegDemuxer::open() 细节" style="whiteSpace=wrap;strokeWidth=2;align=left;verticalAlign=top;fontStyle=1;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="2068.5" y="848" width="330" height="416" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-6" value="" style="whiteSpace=wrap;strokeWidth=2;align=left;verticalAlign=top;fontStyle=1;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="2068.5" y="357" width="330" height="312" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-7" value="开始" style="rounded=1;arcSize=20;strokeWidth=2;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="2172.5" y="20" width="122" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-8" value="MediaPlayer::init_components()" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2103.5" y="149" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-9" value="1、初始化基础组件 (队列, 时钟)" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2103.5" y="253" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-10" value="2、初始化FFmpeg资源 &#xa;(init_ffmpeg_resources)" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2103.5" y="382" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-11" value="分配 AVPacket / AVFrame" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2112.5" y="486" width="242" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-12" value="调用 init_demuxer_and_decoders()" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2103.5" y="590" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-13" value="创建 FFmpegDemuxer 实例" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2106.5" y="744" width="253" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-14" value="调用 m_demuxer-&gt;open()" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2112.5" y="873" width="242" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-15" value="avformat_alloc_context()" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="2112.5" y="977" width="243" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-16" value="avformat_open_input()" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="2120.5" y="1081" width="226" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-17" value="avformat_find_stream_info()" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="2103.5" y="1185" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-18" value="查找音视频流 (findStream)" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2107.5" y="1314" width="251" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-19" value="获取流对应的解码器参数" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2115.5" y="1418" width="236" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-20" value="初始化音视频解码器实例&#xa; (m_decoder-&gt;init)" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2103.5" y="1522" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-21" value="3、初始化SDL渲染器" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2130.5" y="1676" width="206" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-22" value="初始化视频渲染器 (init_sdl_video_renderer)" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="1932.5" y="1780" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-23" value="初始化音频渲染器 (init_sdl_audio_renderer)" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="2274.5" y="1780" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-24" value="4、启动工作线程 (start_threads)" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2103.5" y="1934" width="260" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="5L7LW18AL9VhO3CFZRaL-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="iAqI1snlVB3uqglqqR-K-25" target="iAqI1snlVB3uqglqqR-K-28">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2003" y="2140" />
+              <mxPoint x="2233" y="2140" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-25" value="创建解封装线程" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="1917.5" y="2038" width="172" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="5L7LW18AL9VhO3CFZRaL-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="iAqI1snlVB3uqglqqR-K-26" target="iAqI1snlVB3uqglqqR-K-28">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-26" value="创建视频解码/渲染线程" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="2139.5" y="2038" width="188" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-27" value="创建音频解码/渲染线程" style="whiteSpace=wrap;strokeWidth=2;fontSize=15;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="2377.5" y="2038" width="228" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-28" value="初始化完成" style="rounded=1;arcSize=20;strokeWidth=2;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="2179" y="2170" width="110" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-29" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-7" target="iAqI1snlVB3uqglqqR-K-8" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-30" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-8" target="iAqI1snlVB3uqglqqR-K-9" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-31" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-9" target="iAqI1snlVB3uqglqqR-K-10" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-32" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-10" target="iAqI1snlVB3uqglqqR-K-11" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-33" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-11" target="iAqI1snlVB3uqglqqR-K-12" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-34" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-12" target="iAqI1snlVB3uqglqqR-K-13" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-35" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-13" target="iAqI1snlVB3uqglqqR-K-14" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-36" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-14" target="iAqI1snlVB3uqglqqR-K-15" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-37" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-15" target="iAqI1snlVB3uqglqqR-K-16" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-38" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-16" target="iAqI1snlVB3uqglqqR-K-17" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-39" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-17" target="iAqI1snlVB3uqglqqR-K-18" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-40" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-18" target="iAqI1snlVB3uqglqqR-K-19" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-41" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-19" target="iAqI1snlVB3uqglqqR-K-20" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-42" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-20" target="iAqI1snlVB3uqglqqR-K-21" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-43" value="" style="startArrow=none;endArrow=block;exitX=0;exitY=0.5;entryX=0.5;entryY=0;rounded=0;edgeStyle=orthogonalEdgeStyle;exitDx=0;exitDy=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-21" target="iAqI1snlVB3uqglqqR-K-22" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2062.5" y="1703" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-44" value="" style="startArrow=none;endArrow=block;exitX=1;exitY=0.5;entryX=0.5;entryY=0;rounded=0;edgeStyle=orthogonalEdgeStyle;exitDx=0;exitDy=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-21" target="iAqI1snlVB3uqglqqR-K-23" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-45" value="" style="startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;edgeStyle=orthogonalEdgeStyle;entryDx=0;entryDy=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-22" target="iAqI1snlVB3uqglqqR-K-24" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-46" value="" style="startArrow=none;endArrow=block;exitX=0.5;exitY=1;rounded=0;edgeStyle=orthogonalEdgeStyle;" parent="1" source="iAqI1snlVB3uqglqqR-K-23" target="iAqI1snlVB3uqglqqR-K-24" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-47" value="" style="startArrow=none;endArrow=block;exitX=0;exitY=0.5;entryX=0.5;entryY=0;rounded=0;edgeStyle=orthogonalEdgeStyle;exitDx=0;exitDy=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-24" target="iAqI1snlVB3uqglqqR-K-25" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2104" y="1960" />
+              <mxPoint x="2004" y="1960" />
+              <mxPoint x="2004" y="2013" />
+              <mxPoint x="2004" y="2013" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-48" value="" style="startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;edgeStyle=orthogonalEdgeStyle;" parent="1" source="iAqI1snlVB3uqglqqR-K-24" target="iAqI1snlVB3uqglqqR-K-26" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-49" value="" style="startArrow=none;endArrow=block;exitX=1;exitY=0.5;entryX=0.5;entryY=0;rounded=0;edgeStyle=orthogonalEdgeStyle;exitDx=0;exitDy=0;" parent="1" source="iAqI1snlVB3uqglqqR-K-24" target="iAqI1snlVB3uqglqqR-K-27" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="iAqI1snlVB3uqglqqR-K-50" value="" style="startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;edgeStyle=orthogonalEdgeStyle;" parent="1" source="iAqI1snlVB3uqglqqR-K-27" target="iAqI1snlVB3uqglqqR-K-28" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2491" y="2140" />
+              <mxPoint x="2233" y="2140" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

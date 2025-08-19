@@ -22,18 +22,11 @@
 
 #include "IClockManager.h"	// 时钟管理器接口；音频解码出的帧的PTS用于后续更新时钟
 
-// FFmpeg类型的前向声明
 struct AVCodecParameters;	// 编解码器参数结构体
 struct AVPacket;			// 数据包结构体
 struct AVFrame;				// 数据帧结构体
 enum AVSampleFormat;		// 采样格式枚举
 struct AVRational;			// 有理数结构体（用于时间基准）
-
-// 对于 getChannelLayout()，AVChannelLayout的定义比较复杂，
-// 最小可行阶段直接用 getChannels() 更简单。
-// 若确实需要更精确的声道布局，可能需要包含 <libavutil/channel_layout.h>
-// 或者使用其 underlying type下层类型（通常是 uint64_t)
-// 为简易起见，本播放器中更专注于声道数。
 
 class IAudioDecoder {
 public:
@@ -51,8 +44,6 @@ public:
 	/**
 	* @brief 将单个音频包解码为一个音频帧（PCM数据）。
 	* @param packet 包含待解码的压缩音频数据的 AVPacket。
-	* 若在流结束时获取解码器中剩余的帧（draining the decoder），
-	* 通常是发送一个空的packet（packet->data==nullptr && packet->size==0）给解码器。
 	* @param frame 指向 AVFrame 指针的指针，该指针将被解码后的PCM数据填充，
 	* @return 成功时返回0（帧已解码），若需要更多输入则返回 AVERROR(EAGAIN)，
 	* 若解码器已完全刷新、且不会再有更多帧输出则返回AVERROR_EOF，
@@ -80,7 +71,7 @@ public:
 
 	/**
 	* @brief 获取解码后音频的采样格式（如 AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_FLTP)。
-	* 这个信息对于音频渲染器配置音频设备非常重要。
+	* 对于音频渲染器配置音频设备非常重要。
 	* @return AVSampleFormat 枚举值。
 	*/
 	virtual enum AVSampleFormat getSampleFormat() const = 0;
@@ -91,9 +82,6 @@ public:
 	* @return 表示时间基准的 AVRational 结构体。
 	*/
 	virtual struct AVRational getTimeBase() const = 0;
-
-	// 可选： 获取声道布局（更详细的声道信息）
-	//virtual uint64_t getChannelLayout() const = 0;
 
 	// 获取每个采样点的字节数或每个完整采样帧的字节数
 	//（通常可以从 sample_format 和 channels 推断出来，或者由音频渲染器根据这些参数计算）

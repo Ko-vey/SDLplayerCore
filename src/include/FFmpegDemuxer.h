@@ -25,7 +25,6 @@
 
 using namespace std;
 
-//包含用于实现的实际FFmpeg头文件
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>	// AVCodecParameters, AVMediaType
@@ -41,7 +40,7 @@ private:
 	int m_audioStreamIndex = -1;
 
 public:
-	FFmpegDemuxer();
+	FFmpegDemuxer() = default;
 	virtual ~FFmpegDemuxer() override;
 
 	// IDemuxer 接口实现
@@ -54,11 +53,9 @@ public:
 	AVRational getTimeBase(int streamIndex) const override;
 	double getDuration() const override;
 
-	//禁止复制构造函数和赋值操作符重载
 	FFmpegDemuxer(const FFmpegDemuxer&) = delete;
 	FFmpegDemuxer& operator=(const FFmpegDemuxer&) = delete;
 
 private:
-	//辅助函数，用于在打开文件后查找流
 	void findStreamsInternal();
 };

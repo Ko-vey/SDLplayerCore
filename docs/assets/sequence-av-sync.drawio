@@ -1,0 +1,299 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram name="第 1 页" id="u-nP56H6Wmwig5uB7CYJ">
+    <mxGraphModel dx="540" dy="1331" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-1" value="音频渲染线程" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};size=65;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1720" y="40" width="150" height="1870" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-2" value="同步时钟&#xa;(ClockManager)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};size=65;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1967" y="40" width="150" height="1870" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-3" value="视频渲染线程" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};size=65;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2167" y="40" width="150" height="1870" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-4" value="主线程&#xa;(事件循环)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};size=65;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2492" y="40" width="150" height="1870" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-5" value="视频帧队列" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};size=65;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2692" y="40" width="150" height="1870" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-6" value="SDLVideoRenderer" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};size=65;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2892" y="40" width="152" height="1870" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-7" value="SDL API" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};size=65;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="3094" y="40" width="150" height="1870" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-8" value="loop" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=40;strokeWidth=4;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1784" y="115" width="1396" height="237" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-9" value="[每次音频输出]" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-8">
+          <mxGeometry x="40" width="1356" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-10" value="" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=0;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2007" y="558" width="996" height="173" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-11" value="" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-10">
+          <mxGeometry width="996" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-12" value="alt" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=30;strokeWidth=2;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="2090" y="750" width="1087" height="212" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-13" value="[delay &gt; 0 (视频超前)]" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-12">
+          <mxGeometry x="30" width="1057" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-14" value="[视频准时或落后 (delay &lt;= 0)]" style="shape=line;dashed=1;whiteSpace=wrap;verticalAlign=top;labelPosition=center;verticalLabelPosition=middle;align=center;strokeColor=#B3B3B3;strokeWidth=2;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-12">
+          <mxGeometry y="103" width="1087" height="4" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-15" value="alt" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=30;fontStyle=1;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2157" y="1181" width="421" height="305" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-16" value="[视频播放已结束 (EOF)]" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-15">
+          <mxGeometry x="30" width="391" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-17" value="[取帧超时]" style="shape=line;dashed=1;whiteSpace=wrap;verticalAlign=top;labelPosition=center;verticalLabelPosition=middle;align=center;strokeColor=#B3B3B3;strokeWidth=2;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-15">
+          <mxGeometry y="152" width="421" height="4" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-18" value="alt" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=30;strokeWidth=3;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1997" y="460" width="1193" height="1036" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-19" value="[已取到新帧]" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-18">
+          <mxGeometry x="-107" width="1163" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-20" value="[未取到新帧 (队列超时或为空)]" style="shape=line;dashed=1;whiteSpace=wrap;verticalAlign=top;labelPosition=center;verticalLabelPosition=middle;align=center;strokeColor=#B3B3B3;fontStyle=1;strokeWidth=3;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-18">
+          <mxGeometry y="680" width="1193" height="4" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-21" value="loop" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=40;strokeWidth=4;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1987" y="362" width="1213" height="1144" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-22" value="[视频同步线程循环]" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-21">
+          <mxGeometry x="40" width="1173" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-23" value="alt" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=30;fontStyle=1;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2556" y="1614" width="550" height="264" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-24" value="[收到 FF_REFRESH_EVENT]" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-23">
+          <mxGeometry x="30" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-25" value="[收到 SDL_WINDOWEVENT (如窗口大小改变、暴露)]" style="shape=line;dashed=1;whiteSpace=wrap;verticalAlign=top;labelPosition=center;verticalLabelPosition=middle;align=center;strokeColor=#B3B3B3;strokeWidth=2;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-23">
+          <mxGeometry y="171" width="550" height="4" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-26" value="loop" style="shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=40;fontStyle=1;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2546" y="1516" width="634" height="372" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-27" value="[主线程事件循环]" style="text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-26">
+          <mxGeometry x="40" width="594" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-28" value="setAudioClock(frame.pts)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-1" target="t2UCjKY_MSiDwHSN88xn-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1927" y="193" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-29" value="1" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-28">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-131" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-30" value="SDL_QueueAudio(pcm)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-1" target="t2UCjKY_MSiDwHSN88xn-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2491" y="332" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-31" value="2" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-30">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-694.5" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-32" value="pop(frame, 100 ms)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-3" target="t2UCjKY_MSiDwHSN88xn-5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2513" y="440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-33" value="3" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-32">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-270" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-34" value="delay = calculateSyncDelay(frame)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-3" target="t2UCjKY_MSiDwHSN88xn-6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2614" y="538" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-35" value="4" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-34">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-370.5" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-36" value="setVideoClock(frame.pts)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-6" target="t2UCjKY_MSiDwHSN88xn-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2517" y="659" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-37" value="5" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-36">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="456.5" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-38" value="master = getMasterClockTime()" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-6" target="t2UCjKY_MSiDwHSN88xn-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2517" y="711" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-39" value="6" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-38">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="456.5" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-40" value="SDL_Delay(delay)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-3" target="t2UCjKY_MSiDwHSN88xn-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2714" y="819" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-41" value="7" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-40">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-471" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-42" value="prepareFrameForDisplay(frame)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-3" target="t2UCjKY_MSiDwHSN88xn-6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2614" y="995" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-43" value="8" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-42">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-370.5" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-44" value="SDL_PushEvent(FF_REFRESH_EVENT)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-3" target="t2UCjKY_MSiDwHSN88xn-4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2413" y="1115" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-45" value="9" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-44">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-170" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-46" value="SDL_PushEvent(FF_QUIT_EVENT)" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-3" target="t2UCjKY_MSiDwHSN88xn-4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2413" y="1259" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-47" value="10" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-46">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-170" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-48" value="continue" style="curved=1;dashed=1;dashPattern=2 3;endArrow=block;rounded=0;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-3" target="t2UCjKY_MSiDwHSN88xn-3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2293" y="1406" />
+              <mxPoint x="2293" y="1436" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-49" value="11" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-48">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-57" y="-22" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-50" value="SDL_WaitEvent()" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-4" target="t2UCjKY_MSiDwHSN88xn-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2877" y="1594" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-51" value="12" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-50">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-308.5" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-52" value="displayFrame()" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-4" target="t2UCjKY_MSiDwHSN88xn-6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2776" y="1692" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-53" value="13" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-52">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-208" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-54" value="refresh()" style="verticalAlign=bottom;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;endArrow=block;" edge="1" parent="1" source="t2UCjKY_MSiDwHSN88xn-4" target="t2UCjKY_MSiDwHSN88xn-6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2776" y="1858" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-55" value="14" style="ellipse;aspect=fixed;fillColor=#000000;align=center;fontColor=#FFFFFF;" vertex="1" parent="t2UCjKY_MSiDwHSN88xn-54">
+          <mxGeometry width="14" height="14" relative="1" as="geometry">
+            <mxPoint x="-208" y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-56" value="实际播放时间点会由&#xa;ClockManager根据SDL&#xa;音频缓冲区大小校正" style="fillColor=#ffff88;strokeColor=#9E916F;" vertex="1" parent="1">
+          <mxGeometry x="1820" y="213" width="180" height="67" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-57" value="calculateSyncDelay 内部实现" style="fillColor=#ffff88;strokeColor=#9E916F;fontStyle=0" vertex="1" parent="1">
+          <mxGeometry x="2017" y="578" width="976" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-58" value="跳过等待，立即处理当前帧，&#xa;通过快速消费队列中的帧来追赶时钟" style="fillColor=#ffff88;strokeColor=#9E916F;" vertex="1" parent="1">
+          <mxGeometry x="2104" y="885" width="277" height="68" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-59" value="转换色彩空间(sws_scale)，&#xa;为纹理准备好YUV数据" style="fillColor=#ffff88;strokeColor=#9E916F;" vertex="1" parent="1">
+          <mxGeometry x="2864" y="1015" width="209" height="68" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-60" value="线程准备退出" style="fillColor=#ffff88;strokeColor=#9E916F;" vertex="1" parent="1">
+          <mxGeometry x="2167" y="1279" width="150" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-61" value="内部调用 SDL_UpdateYUVTexture&#xa;和 SDL_RenderPresent()" style="fillColor=#ffff88;strokeColor=#9E916F;" vertex="1" parent="1">
+          <mxGeometry x="2841" y="1712" width="255" height="68" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-65" value="音频渲染线程" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1720" y="1910" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-67" value="&lt;span style=&quot;font-weight: 400;&quot;&gt;同步时钟&lt;/span&gt;&lt;br style=&quot;padding: 0px; margin: 0px; font-weight: 400;&quot;&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;(ClockManager)&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1967" y="1910" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-68" value="视频渲染线程" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2167.5" y="1910" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-69" value="主线程&lt;br style=&quot;padding: 0px; margin: 0px;&quot;&gt;(事件循环)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2492" y="1910" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-70" value="视频帧队列" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2692" y="1910" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-71" value="SDLVideoRenderer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="2893" y="1910" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t2UCjKY_MSiDwHSN88xn-72" value="SDL API" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="3094" y="1910" width="150" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

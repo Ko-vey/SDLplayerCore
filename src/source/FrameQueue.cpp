@@ -23,7 +23,9 @@
 
 FrameQueue::FrameQueue(size_t max_queue_size):max_size(max_queue_size) {}
 
-FrameQueue::~FrameQueue() { clear(); }
+FrameQueue::~FrameQueue() { 
+	clear(); 
+}
 
 bool FrameQueue::push(AVFrame* frame) {
 	if (!frame) {
@@ -34,21 +36,21 @@ bool FrameQueue::push(AVFrame* frame) {
 	AVFrame* frame_clone = av_frame_alloc();
 	if (!frame_clone) {
 		cerr << "FrameQueue::push: av_frame_alloc failed." << endl;
-		return false;//分配失败
+		return false;
 	}
 
-	//为输入frame的数据创建一个新的引用，并由frame_clone持有
+	// 为输入frame的数据创建一个新的引用，并由frame_clone持有
 	int ret = av_frame_ref(frame_clone, frame);
 	if (ret < 0) {
 		cerr << "FrameQueue::push: av_frame_ref failed with error " << ret << endl;
-		av_frame_free(&frame_clone);//释放刚分配的frame_clone结构
+		av_frame_free(&frame_clone); // 释放刚分配的frame_clone结构
 		return false;
 	}
 
 	std::unique_lock<std::mutex> lock(mutex);
 	
 	// 如果设置了最大容量，并且队列已满，则等待
-	// 必须使用while循环来防止“虚假唤醒”(spurious wakeups)
+	// 必须使用while循环来防止“虚假唤醒”
 	while (max_size > 0 && queue.size() >= max_size && !eof_signaled) {
 		//cerr << "FrameQueue::push: Queue is full. Holding frame and wait." << endl;
 		cond_producer.wait(lock);
@@ -61,7 +63,7 @@ bool FrameQueue::push(AVFrame* frame) {
 
 	queue.push(frame_clone);
 
-	lock.unlock();//在通知之前，尽早释放锁
+	lock.unlock(); // 在通知之前，尽早释放锁
 	// 通知一个正在等待的消费者，队列中有新数据了
 	cond_consumer.notify_one();
 
@@ -69,7 +71,7 @@ bool FrameQueue::push(AVFrame* frame) {
 }
 
 bool FrameQueue::pop(AVFrame* frame, int timeout_ms) {
-	if (!frame) {//目标frame指针不能为空
+	if (!frame) {
 		cerr << "FrameQueue::pop: Output frame parameter is null." << endl;
 		return false;
 	}
@@ -101,22 +103,22 @@ bool FrameQueue::pop(AVFrame* frame, int timeout_ms) {
 	// 从队列中取出一个帧
 	AVFrame* src_frame = queue.front();
 	queue.pop();
-	lock.unlock();//在执行FFmpeg操作前可以释放锁
+	lock.unlock(); // 在执行FFmpeg操作前可以释放锁
 
 	// unref旧的，ref新的
 	av_frame_unref(frame);
 	int ret = av_frame_ref(frame, src_frame);
 	if (ret < 0) {
 		cerr << "FrameQueue::pop: av_frame_ref failed to copy to output frame. Error: " << ret << endl;
-		//即使引用失败，src_frame也必须被正确处理
-		//此时用户提供的frame可能处于不确定状态，但仍需释放src_frame
+		// 即使引用失败，src_frame 也必须被正确处理
+		// 此时用户提供的 frame 可能处于不确定状态，但仍需释放 src_frame
 		av_frame_free(&src_frame);
-		//返回false，因为数据未能成功传递给调用者
+		// 返回 false，因为数据未能成功传递给调用者
 		return false;
 	}
 
-	//释放src_frame本身（它在push时分配，其数据现在由外部frame引用）
-	av_frame_free(&src_frame);//释放开发者自己管理的副本的容器
+	// 释放 src_frame本身（它在 push 时分配，其数据现在由外部 frame 引用）
+	av_frame_free(&src_frame); // 释放开发者自己管理的副本的容器
 
 	// 通知一个可能在等待的生产者，队列中有空间了
 	cond_producer.notify_one();
@@ -134,11 +136,11 @@ void FrameQueue::clear() {
 	while (!queue.empty()) {
 		AVFrame* frm = queue.front();
 		queue.pop();
-		av_frame_free(&frm);//释放AVFrame结构本身
+		av_frame_free(&frm);
 	}
 	// eof_signaled 状态通常在clear时不改变，
 	// 因为clear可能是中间操作，EOF代表流的结束。
-	//如果需要完全重置，可以添加一个reset()方法。
+	// 如果需要完全重置，可以添加一个reset()方法。
 }
 
 void FrameQueue::signal_eof() {
@@ -146,8 +148,8 @@ void FrameQueue::signal_eof() {
 	eof_signaled = true;
 	lock.unlock();
 	// 唤醒所有等待的消费者和生产者，让他们能够检查eof_signaled标志并退出
-	cond_consumer.notify_all();//通知所有等待的消费者线程EOF状态已改变
-	cond_producer.notify_all();//通知所有等待的生产者线程
+	cond_consumer.notify_all();// 通知所有等待的消费者线程EOF状态已改变
+	cond_producer.notify_all();// 通知所有等待的生产者线程
 }
 
 bool FrameQueue::is_eof() const {

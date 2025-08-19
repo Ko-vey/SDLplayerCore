@@ -39,12 +39,11 @@ private:
 	std::condition_variable cond_consumer;	// 当队列为空时，消费者等待
 	std::condition_variable cond_producer;	// 当队列已满时，生产者等待
 	bool eof_signaled = false;
-	// size_t - 无符号整数类型，具体类型由平台决定
-	size_t max_size = 0;		// 0表示无限制，>0表示队列最大容量
+	size_t max_size = 0;					// 0表示无限制，>0表示队列最大容量
 
 public:
-	FrameQueue(size_t max_queue_size = 0);	//构造函数，可指定最大队列大小
-	~FrameQueue();							//析构函数，清理资源
+	FrameQueue(size_t max_queue_size = 0);
+	~FrameQueue();
 
 	/**
 	* @brief 添加数据帧到队列尾部，
@@ -58,10 +57,7 @@ public:
 	* @brief 从队列头部获取帧，数据会引用到调用者提供的frame中
 	* @param frame: 调用者提供的AVFrame指针，用于接收数据。调用前应确保其已分配(av_frame_alloc)
 	* 或将其之前引用的数据unref。本函数会先unref后再ref
-	* @param timeout_ms：等待超时时间（毫秒）
-	* <0:无限等待
-	* 0：非阻塞
-	* >0：等待指定时间
+	* @param timeout_ms：等待超时时间（毫秒），<0:无限等待，0：非阻塞，>0：等待指定时间
 	* @return 成功获取frame返回true，失败则返回false（超时、队列为空且EOF、或队列为空的非阻塞调用）
 	*/
 	bool pop(AVFrame* frame, int timeout_ms = -1);
@@ -77,7 +73,7 @@ public:
 	void clear();
 
 	/**
-	* @brief 通知队列数据流结束（EOF）；会唤醒所有等待pop的数据 和所有等待者
+	* @brief 通知队列数据流结束（EOF）；会唤醒所有等待pop的数据和所有等待者
 	*/
 	void signal_eof();
 
@@ -86,7 +82,6 @@ public:
 	*/
 	bool is_eof() const;
 
-	// 禁止拷贝构造函数和赋值操作符
 	FrameQueue(const FrameQueue&) = delete;
 	FrameQueue& operator=(const FrameQueue&) = delete;
 };

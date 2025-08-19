@@ -23,11 +23,11 @@
 #include <string>
 #include <iostream>
 #include <atomic>
-#include <memory>   //智能指针，std::unique_ptr
+#include <memory>   // 智能指针，std::unique_ptr
 #include <mutex>
 #include <condition_variable>
 
-// 前向声明 FFmpeg 类型，用于相关头文件
+// 前向声明 FFmpeg 类型
 struct AVCodecParameters;
 struct AVFrame;
 struct AVPacket;
@@ -36,7 +36,7 @@ struct SwsContext;
 // 接口头文件
 #include "PacketQueue.h"    // 数据包队列
 #include "FrameQueue.h"     // 数据帧队列
-#include "IDemuxer.h"       // 解复用器
+#include "IDemuxer.h"       // 解封装器
 #include "IVideoDecoder.h"  // 视频解码器
 #include "IAudioDecoder.h"  // 音频解码器
 #include "IVideoRenderer.h" // 视频渲染器
@@ -45,8 +45,8 @@ struct SwsContext;
 
 using namespace std;
 
-#define REFRESH_EVENT  (SDL_USEREVENT + 1)
-#define BREAK_EVENT  (SDL_USEREVENT + 2)
+#define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
+#define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -73,7 +73,7 @@ private:
     std::unique_ptr<FrameQueue> m_audioFrameQueue;      // 音频帧队列
 
     // 关系：MediaPlayer HAS-A IWorker
-    std::unique_ptr<IDemuxer> m_demuxer;                // 解复用器
+    std::unique_ptr<IDemuxer> m_demuxer;                // 解封装器
     std::unique_ptr<IVideoDecoder> m_videoDecoder;      // 视频解码器
     std::unique_ptr<IAudioDecoder> m_audioDecoder;      // 音频解码器
     std::unique_ptr<IVideoRenderer> m_videoRenderer;    // 视频渲染器
@@ -81,7 +81,7 @@ private:
     std::unique_ptr<IClockManager> m_clockManager;      // 时钟管理器
 
     // 内部状态变量
-    int videoStreamIndex = -1;                  // 解复用器找到的视频流索引
+    int videoStreamIndex = -1;                  // 解封装器找到的视频流索引
     int audioStreamIndex = -1;                  // 音频流索引
     // 其他变量
     int frame_cnt = 0;                          // 帧计数器
@@ -92,7 +92,7 @@ private:
     AVFrame* m_renderingAudioFrame = nullptr;   // 用于 音频渲染 的 Frame
 
     // 内部线程句柄
-    SDL_Thread* m_demuxThread = nullptr;        // 解复用线程
+    SDL_Thread* m_demuxThread = nullptr;        // 解封装线程
     SDL_Thread* m_videoDecodeThread = nullptr;  // 视频解码线程
     SDL_Thread* m_videoRenderthread = nullptr;  // 视频渲染线程
     SDL_Thread* m_audioDecodeThread = nullptr;  // 音频解码线程
@@ -102,7 +102,6 @@ public:
     MediaPlayer(const string& filepath);
     virtual ~MediaPlayer();
 
-    //禁用 拷贝构造函数 和 赋值操作符重载
     MediaPlayer(const MediaPlayer& src) = delete;
     MediaPlayer& operator=(const MediaPlayer& rhs) = delete;
 
@@ -132,7 +131,7 @@ private:
     void init_sdl_video_renderer();
     void init_sdl_audio_renderer();
     void start_threads();
-    // 析构和清理资源的辅助函数
+    // 析构和资源清理的辅助函数
     void cleanup_ffmpeg_resources();
     void cleanup();
 };

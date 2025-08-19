@@ -22,6 +22,7 @@
 
 #include "IClockManager.h"
 #include <mutex>
+
 #include "SDL2/SDL_timer.h" // SDL_GetTicks64
 #include "SDL2/SDL_audio.h" // SDL_AudioDeviceID
 
@@ -31,15 +32,17 @@ public:
     // 让编译器的默认析构函数清理所有基本类型成员
     virtual ~ClockManager() = default;
 
-    // 实现 IClockManager 接口
-    void init(InitialMasterHint hint) override;
+    // IClockManager 接口实现
+    void init(bool has_audio, bool has_video) override;
     void reset() override;
 
+    void setMasterClock(MasterClockType type) override;
     double getMasterClockTime() override;
 
     void setAudioClock(double pts) override;
     double getAudioClockTime() override;
-    void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond, bool hasAudioStream) override;
+
+    void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond) override;
 
     void setVideoClock(double pts) override;
     double getVideoClockTime() override;
@@ -51,18 +54,25 @@ public:
     bool isPaused() const override;
 
 private:
+    // 不加锁的内部get方法
+    double getAudioClockTime_nolock();
+    double getVideoClockTime_nolock();
+    double getExternalClockTime_nolock();
+
+private:
     mutable std::mutex m_mutex;
 
     double m_video_clock_time;
-    double m_audio_clock_time; // 最后推送到队列的音频块的PTS
+    double m_audio_clock_time;
 
-    Uint64 m_start_time; // 使用SDL的高精度计时器
+    Uint64 m_start_time;
     Uint64 m_paused_at;
 
     bool m_paused;
-    InitialMasterHint m_master_hint;
+    MasterClockType m_master_clock_type;
 
     SDL_AudioDeviceID m_audio_device_id;
     int m_audio_bytes_per_second;
     bool m_has_audio_stream;
+    bool m_has_video_stream;
 };

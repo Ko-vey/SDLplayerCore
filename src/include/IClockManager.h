@@ -22,12 +22,11 @@
 
 #include "SDL2/SDL_audio.h"	// SDL_AudioDeviceID
 
-// 音频作为主参考，外部时钟作为无音频时的备用，
-// 该枚举可以指导 ClockManager 内部如何选择 getMasterClockTime 的源
-// 对于最小可行播放器，该枚举甚至可以不用在接口暴露，而作为内部逻辑
-enum class InitialMasterHint {
-	PREFER_AUDIO,	//若有音频，优先用音频
-	PREFER_EXTERNAL	//优先用外部时钟（如纯视频）
+// 表示确切的时钟类型
+enum class MasterClockType {
+	AUDIO,
+	VIDEO,
+	EXTERNAL
 };
 
 class IClockManager {
@@ -36,9 +35,16 @@ public:
 
 	/**
 	* @brief 初始化时钟管理器。
-	* @param hint 提示初始化时倾向于使用哪种时钟作为参考，主要影响无音频情况。
+	* @param has_audio 存在音频流与否。
+	* @param has_video 存在视频流与否。
 	*/
-	virtual void init(InitialMasterHint hint = InitialMasterHint::PREFER_AUDIO) = 0;
+	virtual void init(bool has_audio, bool has_video) = 0;
+
+	/**
+	* @brief 设置确切的时钟类型。
+	* @param type 时钟类型。
+	*/
+	virtual void setMasterClock(MasterClockType type) = 0;
 
 	/**
 	* @brief 获取主时钟的当前时间（单位：秒）。
@@ -60,14 +66,13 @@ public:
 	virtual double getAudioClockTime() = 0;
 
 	/**
-	* @brief 设置音频硬件参数，供getAudioClockTime()计算使用
+	* @brief 设置音频硬件参数，供 getAudioClockTime() 计算使用
 	*/
-	virtual void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond, bool hasAudioStream) = 0;
+	virtual void setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond) = 0;
 
 	/**
 	* @brief 更新视频时钟的当前时间（单位：秒）
 	* @param pts 视频帧的显示时间戳。
-	* @param duration 视频帧的持续时间（可选，可用于更平滑的视频时钟）。
 	*/
 	virtual void setVideoClock(double pts) = 0;
 
@@ -76,12 +81,6 @@ public:
 	* @return 视频时钟的时间。
 	*/
 	virtual double getVideoClockTime() = 0;
-
-	//外部时钟通常由系统时间驱动，setExternalClock 可能不直接设置一个pts，
-	//而是校准一个起始点。getExternalClockTime 会返回（当前系统时间 - 播放开始的系统时间点）。
-	//为了简化，可以让setExternalClock更类似其它setters，但这取决于具体实现。
-	//对于最小可行版本，可以简化为只在内部使用，无需set接口，get接口返回基于播放开始的流逝时间。
-	//或者保留一个简单的set来同步起始点。
 
 	/**
 	* @brief 获取外部时钟的当前时间（单位：秒）。
