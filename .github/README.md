@@ -254,7 +254,7 @@ SDLplayerCore/
 
 This project primarily serves as a personal learning record and technical showcase. Therefore, I am not actively seeking code contributions (Pull Requests) at this time.
 
-However, any form of **discussion and feedback** is highly welcome! If you encounter any issues, find a bug, or have suggestions and ideas about the project design, please contact me by **creating an Issue**: submit your problem or suggestion on the project's [Issues page](../../../issues). I will check and respond periodically.
+However, any form of **discussion and feedback** is highly welcome! If you encounter any issues, find a bug, or have suggestions and ideas about the project design, please contact me by **creating an Issue**: submit your problem or suggestion on the project's [Issues page](https://github.com/Ko-vey/SDLplayerCore/issues). I will check and respond periodically.
 
 Thank you for your attention and understanding!
 
