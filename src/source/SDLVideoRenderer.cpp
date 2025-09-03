@@ -22,14 +22,6 @@
 #include <algorithm> // std::max
 #include <iostream>
 
-// 如果视频帧比主时钟快，等待。
-// 如果视频帧比主时钟慢超过这个阈值（秒），就认为它“太晚”了。
-constexpr double AV_SYNC_THRESHOLD_MIN = 0.04;
-// 如果视频帧比主时钟慢超过这个阈值，但小于最大值，加速播放（不延迟）。
-constexpr double AV_SYNC_THRESHOLD_MAX = 0.1;
-// 如果视频帧没有提供 duration，使用这个默认值（对应25fps）
-constexpr double DEFAULT_FRAME_DURATION = 0.04;
-
 SDLVideoRenderer::~SDLVideoRenderer() {
     close();
 }
@@ -153,10 +145,7 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
     double delay = pts - m_clock_manager->getMasterClockTime();
 
     // 根据延时进行同步决策
-    const double AV_SYNC_THRESHOLD_MIN = 0.04; // 同步阈值下限 (40ms)
-    const double AV_SYNC_THRESHOLD_MAX = 0.1;  // 同步阈值上限 (100ms)
     const double AV_NOSYNC_THRESHOLD = 10.0;   // 非同步（重置）阈值 (10s)
-
     // 检查延时是否过大，过大则认为时钟不同步，重置延时
     if (delay > AV_NOSYNC_THRESHOLD || delay < -AV_NOSYNC_THRESHOLD) {
         // 时钟差距过大，可能出错了，重置时钟
@@ -164,14 +153,24 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
         delay = 0;
     }
 
-    if (delay < -AV_SYNC_THRESHOLD_MAX) { // 视频严重落后，不等待，立即显示
+    // 视频严重落后，请求丢帧
+    if (delay < -AV_SYNC_THRESHOLD_MAX) {
+        // 返回一个特殊信号，通知调用者丢弃此帧
+        std::cout << "VideoRenderer: Lagging significantly (" << delay << "s). Requesting frame drop." << std::endl;
+        return SYNC_SIGNAL_DROP_FRAME;
+    }
+
+    // 在“同步区”内 (微小落后或微小超前)，则认为无需等待，立即显示
+    if (delay < AV_SYNC_THRESHOLD_MIN) {
         return 0.0;
     }
 
-    if (delay > AV_SYNC_THRESHOLD_MAX) { // 视频超前太多，截断等待时间
+    // 如果视频超前太多，则截断等待时间，防止因时钟突变导致长时间卡顿
+    if (delay > AV_SYNC_THRESHOLD_MAX) { 
         return AV_SYNC_THRESHOLD_MAX;
     }
 
+    // 默认情况：视频在合理范围内超前，返回需要等待的精确时间
     return delay;
 }
 

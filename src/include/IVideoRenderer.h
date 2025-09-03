@@ -25,6 +25,18 @@
 struct AVFrame;		// 数据帧结构体（包含解码后的视频数据）
 enum AVPixelFormat;	// 像素格式枚举
 
+// 默认帧持续时间（秒），对应25fps，用于无duration信息的帧
+constexpr double DEFAULT_FRAME_DURATION = 0.04;
+
+// 同步阈值：视频落后超过此值，则不进行延迟，加速追赶
+constexpr double AV_SYNC_THRESHOLD_MIN = 0.04;
+
+// 同步阈值：视频落后超过此值，则触发丢帧决策
+constexpr double AV_SYNC_THRESHOLD_MAX = 0.1;
+
+// 同步信号：由 calculateSyncDelay 返回，请求调用者丢弃当前帧
+constexpr double SYNC_SIGNAL_DROP_FRAME = -1.0;
+
 class IVideoRenderer {
 public:
 	virtual ~IVideoRenderer() = default;
@@ -52,8 +64,9 @@ public:
 	 *
 	 * @param frame 指向解码后的视频数据 AVFrame 的指针。函数会从此帧中提取PTS。
 	 * @return double 类型的延迟时间，单位为秒。
-	 * - 如果返回值 > 0，表示视频早于主时钟，调用者应延迟相应的时间。
-	 * - 如果返回值 <= 0，表示视频等于或晚于主时钟，调用者应立即请求渲染，无需等待。
+	 *   > 0.0: 视频早于主时钟，调用者需要延迟的时间（秒）。
+	 *   = 0.0: 应立即显示
+	 *   = SYNC_SIGNAL_DROP_FRAME: 视频严重滞后，应丢弃此帧
 	*/
 	virtual double calculateSyncDelay(AVFrame* frame) = 0;
 

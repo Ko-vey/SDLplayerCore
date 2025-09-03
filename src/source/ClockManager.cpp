@@ -39,19 +39,17 @@ void ClockManager::init(bool has_audio, bool has_video) {
     m_has_audio_stream = has_audio;
     m_has_video_stream = has_video;
 
-    // 根据可用流智能选择最佳主时钟
-    // 策略：有音频用音频，没音频但有视频用视频，都没有用外部时钟
+    // 主时钟选择策略：
+    // 1. 音频时钟是最佳、最稳定的主时钟源。
+    // 2. 如果没有音频，必须使用独立于媒体流的外部（系统）时钟作为基准。
+    // 3. 视频时钟永远不作为主时钟，因为它需要一个外部基准来进行同步。
     if (m_has_audio_stream) {
         m_master_clock_type = MasterClockType::AUDIO;
-        std::cout << "ClockManager: Initializing with AUDIO master clock." << std::endl;
-    }
-    else if (m_has_video_stream) {
-        m_master_clock_type = MasterClockType::VIDEO;
-        std::cout << "ClockManager: Initializing with VIDEO master clock (no audio stream)." << std::endl;
+        std::cout << "ClockManager: Audio stream present. Initializing with AUDIO master clock." << std::endl;
     }
     else {
         m_master_clock_type = MasterClockType::EXTERNAL;
-        std::cout << "ClockManager: Initializing with EXTERNAL master clock (no A/V streams)." << std::endl;
+        std::cout << "ClockManager: No audio stream. Initializing with EXTERNAL master clock as the stable time source." << std::endl;
     }
 }
 

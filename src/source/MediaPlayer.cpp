@@ -772,6 +772,14 @@ int MediaPlayer::video_render_func() {
         if (got_new_frame) {
             // 计算需要延迟多久
             double delay = m_videoRenderer->calculateSyncDelay(m_renderingVideoFrame);
+            // 收到丢帧信号：释放当前帧，并立即开始下一次循环以获取新帧
+            // 为了避免浮点数比较的潜在问题，使用 < 0.0 来判断帧是否迟到
+            if (delay < 0.0) {
+                cout << "MediaPlayer VideoRenderThread: Dropping a frame to catch up." << endl;
+                av_frame_unref(m_renderingVideoFrame);
+                continue; // 直接跳到 while 循环的下一次迭代
+            }
+
             if (delay > 0.0) {
                 SDL_Delay(static_cast<Uint32>(delay * 1000.0));
             }
