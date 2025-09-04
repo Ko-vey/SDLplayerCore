@@ -43,6 +43,8 @@
 
 > *Please note that the primary objective of this project is for teaching and demonstration purposes, not to create a full-featured daily-use player that can replace mature products like VLC or MPC.*
 
+Analysis with the Visual Studio Performance Profiler shows that `SDLplayerCore` maintains a stable CPU usage of under 3% when playing 1080P@30fps H.264 videos on a Windows 11 system with a Ryzen R7-5800H processor, demonstrating its high-performance capabilities.
+
 The project currently implements the following:
 - **Buffer queue** and **flow control** design in audio/video playback
 - Core **audio/video synchronization**
@@ -50,7 +52,6 @@ The project currently implements the following:
 - **Window resizing**
 
 Through this project, developers can learn:
-
 - **FFmpeg 7 API**: How to use the `libavformat` library for demuxing and the `libavcodec` library for audio/video decoding.
 - **SDL2 API**: How to create windows, render video frames (AVFrame -> YUV -> RGB), and handle audio PCM data.
 - **Multithreaded Concurrent Programming**: How to manage data reading/demuxing, audio/video decoding, and rendering modules in separate, safe threads, and communicate between them using modern C++11 mutexes and condition variables.
@@ -231,18 +232,21 @@ SDLplayerCore/
     >
     > You can use any audio or video file on your computer for testing. If you need some, here are some commonly used, copyright-free standard test resources available for download:
     >
-    > - **Video:**
+    > - **Video with Audio Track:**
     >
-    >   - [**Big Buck Bunny (1080p, MP4)**](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4)
-    > - **Audio:**
+    >   - [**Big Buck Bunny (BBB) (Multiple formats, for performance testing)**](https://peach.blender.org/download/)
+    > - **Video-Only:**
     >
-    >   - [**Sample MP3 File**](https://file-examples.com/index.php/sample-audio-files/sample-mp3-download/)
-    >   - [**Sample WAV File**](https://file-examples.com/index.php/sample-audio-files/sample-wav-download/)
+    >   - [**Big Buck Bunny (1080p@60fps, MP4) (For quick tests)**](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4)
+    >   - [**Jellyfish Bitrate Test Files (Multiple formats, for performance testing)**](https://repo.jellyfin.org/archive/jellyfish/)
+    > - **Audio-Only:**
+    >
+    >   - [**Sample MP3 File (For quick tests)**](https://file-examples.com/index.php/sample-audio-files/sample-mp3-download/)
+    >   - [**Sample WAV File (For quick tests)**](https://file-examples.com/index.php/sample-audio-files/sample-wav-download/)
     >
     >   After downloading, save the files on your computer and enter their full path into the program.
     >
     > </details>
-
 
 3. **Playback Control**:
 
@@ -263,17 +267,12 @@ Thank you for your attention and understanding!
 The priority order for planned features is as follows:
 
 - **Interaction Control**
-
   - [ ] Simple UI and volume control (considering `ImGui`, implementing a progress bar, control buttons)
   - [ ] Progress seeking (Seek)
-
 - **Feature Enrichment**
-
   - [ ] Subtitle rendering (e.g., `.srt`, `.ass`)
   - [ ] Network stream support (e.g., `RTSP`, `HLS`)
-
 - **Performance and Algorithm Optimization**
-
   - [ ] Hardware acceleration (considering `Direct3D 11`)
   - [ ] Variable speed playback (considering `FFmpeg`'s `avfilter`)
   - [ ] Dynamic clock synchronization

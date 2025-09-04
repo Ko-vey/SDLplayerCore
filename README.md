@@ -43,25 +43,19 @@
 
 > *注意，本项目的主要目标是教学和演示，而不是打造一个功能完备、可以替代VLC或MPC等成熟产品的日常播放器。*
 
+经过 Visual Studio 性能探查器分析，`SDLplayerCore` 在 Windows 11、锐龙 R7-5800H 处理器下播放 1080P@30fps H.264 视频时，CPU 占用率稳定在 3% 以下，展示了其高效的性能。
+
 该项目目前实现了:
 - 音视频播放中的**缓存队列**和**流量控制**设计
-
 - 核心**音视频同步**
-
 - **播放/暂停**逻辑
-
 - **窗口画面的尺寸调整**功能
 
 开发者可以通过这个项目学习到：
-
 - **FFmpeg7 API**: 如何结合 `libavformat` 库进行解封装，`libavcodec` 库进行音视频解码。
-
 - **SDL2 API**: 如何创建窗口、渲染视频帧（AVFrame -> YUV -> RGB）、以及处理音频PCM数据。
-
 - **多线程并发编程**: 如何通过独立且安全的线程分别管理数据读取与解封装、音视频解码和渲染模块，并通过现代 C++11 的互斥锁和条件变量进行线程间通信。
-
 - **音视频同步**: 基于 `SDL_QueueAudio` 实现一个基础但有效的音视频同步策略。
-
 - **CMake 构建系统**: 配置一个依赖于外部库的、面向跨平台的项目。
 
 **动态演示：**
@@ -108,13 +102,9 @@
 ### 环境依赖
 
 在编译运行程序前，确保开发环境满足以下要求：
-
 - **操作系统**: Windows 10/11 (64-bit)
-
 - **IDE/编译器**: Visual Studio 2022 (v17.9+)，并已安装 “使用 C++ 的桌面开发” 工作负载。
-
 - **构建系统**: CMake(3.15+)
-
 - **版本控制**: Git
 
 ### 编译与构建
@@ -240,11 +230,14 @@ SDLplayerCore/
     > 
     >   你可以使用电脑上的任何音视频文件进行测试。如果需要，这里有一些常用的、无版权问题的标准测试资源可供下载：
     >
-    > - **视频:**
-    >    - [**Big Buck Bunny (1080p, MP4)**](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4)
-    > - **音频:**
-    >    - [**Sample MP3 File**](https://file-examples.com/index.php/sample-audio-files/sample-mp3-download/)
-    >    - [**Sample WAV File**](https://file-examples.com/index.php/sample-audio-files/sample-wav-download/)
+    > - **带音频轨的视频:**
+    >    - [**Big Buck Bunny (BBB)(格式多元，用于性能测试)**](https://peach.blender.org/download/)
+    > - **纯视频:**
+    >    - [**Big Buck Bunny (1080p@60fps, MP4)(快速测试)**](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4)
+    >    - [**Jellyfish Bitrate Test Files(格式多元，用于性能测试)**](https://repo.jellyfin.org/archive/jellyfish/)
+    > - **纯音频:**
+    >    - [**Sample MP3 File (快速测试)**](https://file-examples.com/index.php/sample-audio-files/sample-mp3-download/)
+    >    - [**Sample WAV File (快速测试)**](https://file-examples.com/index.php/sample-audio-files/sample-wav-download/)
     >
     >   下载后，将文件保存在你的电脑上，并在程序中输入其完整路径。
     > </details>
