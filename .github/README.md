@@ -72,10 +72,6 @@ This project adopts a multi-threaded "producer-consumer" model, decoupling the p
 > To gain a deep understanding of the player's architecture, data flow, and core mechanisms such as audio-video synchronization and flow control, 
 > please see our **[Design Document (DESIGN.md)](../docs/DESIGN.md)**.
 
-> **About Challenges & Solutions**
-> Throughout development, we tackled a series of complex technical challenges that shaped the project's final architecture. We have documented a few of the most representative cases—from diagnosis to the final solution—to share our hands-on experience with multithreading, performance, and stability.
-> For a detailed breakdown, check out the **[Core Challenges Document (CHALLENGES.md)](../docs/CHALLENGES.md)**
-
 ![Data Flow and Basic Architecture Flowchart](../docs/assets/flow-basic-architecture.svg)
 
 > **About the Diagrams**
