@@ -22,6 +22,7 @@
 
 #include "../include/IDemuxer.h"
 #include <string>
+#include <atomic>
 
 using namespace std;
 
@@ -38,6 +39,7 @@ private:
 	string m_url;
 	int m_videoStreamIndex = -1;
 	int m_audioStreamIndex = -1;
+	std::atomic<bool> m_abort_request{ false }; // 中断请求标志
 
 public:
 	FFmpegDemuxer() = default;
@@ -52,6 +54,11 @@ public:
 	AVCodecParameters* getCodecParameters(int streamIndex) const override;
 	AVRational getTimeBase(int streamIndex) const override;
 	double getDuration() const override;
+
+	// 用于从外部（如 MediaPlayer）请求中断
+	void requestAbort(bool abort);
+	// FFmpeg 中断回调函数，必须是静态的
+	static int interruptCallback(void* opaque);
 
 	FFmpegDemuxer(const FFmpegDemuxer&) = delete;
 	FFmpegDemuxer& operator=(const FFmpegDemuxer&) = delete;

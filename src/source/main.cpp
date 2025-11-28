@@ -67,29 +67,20 @@ void remove_all_quotes(std::string& path) {
 int main(int argc, char* argv[]) {
     std::string filepath;
 
-    // 1. 判断输入来源：命令行参数或用户交互式输入
+    // 1. & 2. 获取并清理路径
     if (argc >= 2) {
-        // 模式一：从命令行参数获取文件路径
         filepath = argv[1];
     }
     else {
-        // 模式二：提示用户在控制台输入文件路径
-        std::cout << "Please enter the path of media file and press Enter:" << std::endl;
-        // 使用 getline 读取可能包含空格的完整路径
+        std::cout << "Please enter the path of media file or URL and press Enter:" << std::endl;
         std::getline(std::cin, filepath);
-
         if (filepath.empty()) {
             std::cerr << "Error: No file path was provided." << std::endl;
             pause_before_exit();
             return 1;
         }
     }
-
-    // 2. 清理路径中的所有引号
     remove_all_quotes(filepath);
-
-    // 打印清理后的路径用于调试
-    //std::cout << "Cleaned file path: " << filepath << std::endl;
 
     // 3. 初始化SDL库
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) {
@@ -98,26 +89,34 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // 初始化FFmpeg网络模块（使用网络功能前必须调用）
+    avformat_network_init();
+
     // 4. 主逻辑：创建并运行播放器
     try {
         auto player = std::make_unique<MediaPlayer>(filepath);
 
         if (player->runMainLoop() != 0) {
             std::cerr << "Error: MediaPlayer main loop exited unexpectedly." << std::endl;
-            SDL_Quit();
-            pause_before_exit();
-            return 1;
         }
     }
     catch (const std::runtime_error& e) {
         std::cerr << "Runtime Error: " << e.what() << std::endl;
+        // 如果此处异常退出，也要确保清理
+        avformat_network_deinit();
         SDL_Quit();
         pause_before_exit();
         return 1;
     }
 
-    // 5. 成功播放完成后，清理并退出SDL
+    // 5. 成功播放完成后，清理并退出
+    avformat_network_deinit(); // 清理FFmpeg网络资源
     SDL_Quit();
+
+    // 如果是命令行模式，可能不需要等待用户输入
+    if (argc < 2) {
+        pause_before_exit();
+    }
 
     return 0;
 }

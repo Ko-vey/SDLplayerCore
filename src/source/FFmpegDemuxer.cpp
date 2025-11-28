@@ -27,20 +27,65 @@ FFmpegDemuxer::~FFmpegDemuxer() {
 	close();
 }
 
+// 中断回调函数
+int FFmpegDemuxer::interruptCallback(void* opaque) {
+	auto demuxer = static_cast<FFmpegDemuxer*>(opaque);
+	if (demuxer && demuxer->m_abort_request.load()) {
+		// 如果 m_abort_request 为 true，返回 1 表示中断
+		std::cout << "FFmpegDemuxer: Interrupt requested." << std::endl;
+		return 1;
+	}
+	// 否则返回 0，继续执行
+	return 0;
+}
+
+// 请求中断的公共方法
+void FFmpegDemuxer::requestAbort(bool abort) {
+	m_abort_request.store(abort);
+}
+
 bool FFmpegDemuxer::open(const char* url) {
 	// 确保关闭先前的上下文
 	close();
 
 	pFormatCtx = avformat_alloc_context();
 	if (!pFormatCtx) {
-		cerr << "FFmpegDemuxer Error: Counld not allocate format context." << endl;
+		cerr << "FFmpegDemuxer Error: Could not allocate format context." << endl;
 		return false;
 	}
 
-	// 打开输入文件
-	if (avformat_open_input(&pFormatCtx, url, nullptr, nullptr) != 0) {
-		cerr << "FFmpegDemuxer Error: Counldn't open input stream: " << url << endl;
-		avformat_free_context(pFormatCtx);//需要释放上面分配的上下文
+	m_abort_request.store(false); // 重置中断标志
+
+	// 设置中断回调
+	pFormatCtx->interrupt_callback.callback = FFmpegDemuxer::interruptCallback;
+	pFormatCtx->interrupt_callback.opaque = this; // 将当前对象实例作为上下文传递
+
+	// 设置网络选项
+	AVDictionary* opts = nullptr;
+	// 1. 设置RTSP传输协议为TCP。FFmpeg默认可能尝试UDP，在某些网络下可能失败。
+	av_dict_set(&opts, "rtsp_transport", "tcp", 0);
+	// 2. 设置超时时间（单位：微秒）。此处设置5秒超时，防止网络卡顿时程序假死。
+	av_dict_set(&opts, "stimeout", "5000000", 0);
+	
+	// 打开输入流，并传入刚刚设置的选项
+	int ret = avformat_open_input(&pFormatCtx, url, nullptr, &opts);
+
+	// 检查是否有未使用的选项（用于调试），并释放字典
+	if (opts) {
+		char* value = nullptr;
+		if (av_dict_get(opts, "", nullptr, AV_DICT_IGNORE_SUFFIX)) {
+			// 可以选择打印未被识别的选项，帮助排查拼写错误
+			// cout << "FFmpegDemuxer: Some options were not used." << endl;
+		}
+		av_dict_free(&opts);
+	}
+
+	if (ret != 0) {
+		// 错误处理
+		char errbuf[1024] = { 0 };
+		av_strerror(ret, errbuf, sizeof(errbuf));
+		cerr << "FFmpegDemuxer Error: Couldn't open input stream: " << url << " (" << errbuf << ")" << endl;
+		avformat_free_context(pFormatCtx);
 		pFormatCtx = nullptr;
 		return false;
 	}
@@ -48,7 +93,7 @@ bool FFmpegDemuxer::open(const char* url) {
 	// 检索流信息
 	if (avformat_find_stream_info(pFormatCtx, nullptr) < 0) {
 		cerr << "FFmpegDemuxer Error: Couldn't find stream information." << endl;
-		avformat_close_input(&pFormatCtx);//关闭已经打开的输入
+		avformat_close_input(&pFormatCtx);
 		pFormatCtx = nullptr;
 		return false;
 	}
@@ -56,9 +101,8 @@ bool FFmpegDemuxer::open(const char* url) {
 	// 将有关文件的信息转存到标准错误（可选）
 	av_dump_format(pFormatCtx, 0, url, 0);
 
-	// 存储 URL统一资源定位器 、寻找音视频流
 	m_url = url;
-	findStreamsInternal(); // 查找并缓存流索引
+	findStreamsInternal();
 
 	cout << "FFmpegDemuxer: Opened " << url << " successfully." << endl;
 	if (m_videoStreamIndex != -1) {
@@ -72,6 +116,7 @@ bool FFmpegDemuxer::open(const char* url) {
 }
 
 void FFmpegDemuxer::close() {
+	requestAbort(true); // 在关闭前，先请求中断，以防有线程卡在读取操作上
 	if (pFormatCtx) {
 		avformat_close_input(&pFormatCtx);
 		pFormatCtx = nullptr;
