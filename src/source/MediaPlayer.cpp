@@ -71,23 +71,21 @@ MediaPlayer::MediaPlayer(const string& filepath) :
 void MediaPlayer::init_components(const std::string& filepath) {
     cout << "MediaPlayer: Initializing components..." << endl;
 
-    // 步骤 0: 初始化 C++ 层面的基础组件 (队列, 时钟等)
+    // 步骤 0: 初始化 与流信息无关的组件
     // 这些操作如果失败 (如 bad_alloc)，会直接抛出异常。
-    const int MAX_VIDEO_PACKETS = 100;
-    const int MAX_AUDIO_PACKETS = 100;
+    // PacketQueue 的创建在 init_demuxer_and_decoders()
     const int MAX_VIDEO_FRAMES = 5;
     const int MAX_AUDIO_FRAMES = 10;
 
-    m_videoPacketQueue = std::make_unique<PacketQueue>(MAX_VIDEO_PACKETS);
-    m_audioPacketQueue = std::make_unique<PacketQueue>(MAX_AUDIO_PACKETS);
     m_videoFrameQueue = std::make_unique<FrameQueue>(MAX_VIDEO_FRAMES);
     m_audioFrameQueue = std::make_unique<FrameQueue>(MAX_AUDIO_FRAMES);
-
     m_clockManager = std::make_unique<ClockManager>();
-    cout << "MediaPlayer: Queues and clock manager created." << endl;
+    
+    cout << "MediaPlayer: Frame queues and clock manager created." << endl;
 
     // 步骤 1: 初始化所有 FFmpeg 相关资源
     init_ffmpeg_resources(filepath);
+
     // 确定流信息后，初始化时钟管理器
     if (m_clockManager) {
         bool has_audio = (audioStreamIndex >= 0);
@@ -100,7 +98,6 @@ void MediaPlayer::init_components(const std::string& filepath) {
     init_sdl_audio_renderer();
 
     // 步骤 3: 所有资源准备就绪，最后启动工作线程
-    // 这一步最容易失败且最难回滚，所以放在最后。
     start_threads();
 }
 
@@ -237,69 +234,84 @@ MediaPlayer::~MediaPlayer() {
 int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
     cout << "MediaPlayer: Initializing Demuxer and Decoders for: " << filepath << endl;
 
-    // 路径验证（只检查是否为空）
+    // 路径验证
     if (filepath.empty()) {
         cerr << "FFmpeg Init Error: Input path/URL is empty." << endl;
         return -1;
     }
 
-    //1、创建并打开 解封装器Demuxer
+    //1、创建并打开解复用器Demuxer
     m_demuxer = std::make_unique<FFmpegDemuxer>();
     if (!m_demuxer->open(filepath.c_str())) {
-        // FFmpegDemuxer::open 内部已经打印了详细错误，这里只做顶层记录
         cerr << "MediaPlayer Error: Demuxer failed to open input: " << filepath << endl;
         return -1;
     }
     cout << "MediaPlayer: Demuxer opened successfully." << endl;
 
-    // 2、查找所有可能的流
+    // 2、查找音视频流
     videoStreamIndex = m_demuxer->findStream(AVMEDIA_TYPE_VIDEO);
     audioStreamIndex = m_demuxer->findStream(AVMEDIA_TYPE_AUDIO);
 
-    // 3. 检查是否至少有一个可播放的流
+    // 检查是否至少有一个可播放的流
     if (videoStreamIndex < 0 && audioStreamIndex < 0) {
         cerr << "MediaPlayer Error: Demuxer didn't find any video or audio streams." << endl;
-        m_demuxer->close(); // 显式关闭
-        return -1;          // 致命错误
+        return -1; // 致命错误
     }
 
-    // 4. 如果视频流存在，则初始化视频解码器
+    // 3. 根据流信息创建 PacketQueue
+    if (videoStreamIndex >= 0) {
+        AVRational time_base = m_demuxer->getTimeBase(videoStreamIndex);
+        if (time_base.den == 0) {
+            cerr << "MediaPlayer Warning: Invalid video time_base { " << time_base.num << ", " << time_base.den << " }. Using default PacketQueue settings." << endl;
+            m_videoPacketQueue = std::make_unique<PacketQueue>(150, 0);
+        }
+        else {
+            // 设置目标缓冲时长，如10秒
+            double target_duration_sec = 10.0;
+            int64_t max_duration_ts = static_cast<int64_t>(target_duration_sec / av_q2d(time_base));
+            cout << "MediaPlayer: Video PacketQueue configured for " << target_duration_sec << "s buffer (" << max_duration_ts << " in time_base units)." << endl;
+            m_videoPacketQueue = std::make_unique<PacketQueue>(150, max_duration_ts);
+        }
+    }
+
+    if (audioStreamIndex >= 0) {
+        AVRational time_base = m_demuxer->getTimeBase(audioStreamIndex);
+        if (time_base.den == 0) {
+            cerr << "MediaPlayer Warning: Invalid audio time_base { " << time_base.num << ", " << time_base.den << " }. Using default PacketQueue settings." << endl;
+            m_audioPacketQueue = std::make_unique<PacketQueue>(150, 0);
+        }
+        else {
+            // 音频缓冲可以设置得更长一些，如15秒
+            double target_duration_sec = 15.0;
+            int64_t max_duration_ts = static_cast<int64_t>(target_duration_sec / av_q2d(time_base));
+            cout << "MediaPlayer: Audio PacketQueue configured for " << target_duration_sec << "s buffer (" << max_duration_ts << " in time_base units)." << endl;
+            m_audioPacketQueue = std::make_unique<PacketQueue>(150, max_duration_ts);
+        }
+    }
+
+    // 4. 初始化视频解码器 (如果视频流存在)
     if (videoStreamIndex >= 0) {
         cout << "MediaPlayer: Video stream found at index: " << videoStreamIndex << endl;
         AVCodecParameters* pVideoCodecParams = m_demuxer->getCodecParameters(videoStreamIndex);
-        if (!pVideoCodecParams) {
-            cerr << "MediaPlayer Warning: Demuxer failed to get codec parameters for video stream. Ignoring video." << endl;
-            videoStreamIndex = -1; // 获取参数失败，也视为无视频流
-        }
-        else if (!m_videoDecoder->init(pVideoCodecParams)) {
+        if (!pVideoCodecParams || !m_videoDecoder->init(pVideoCodecParams)) {
             cerr << "MediaPlayer Warning: Failed to initialize video decoder. Ignoring video." << endl;
-            videoStreamIndex = -1; // 初始化失败，也视为无视频流
+            videoStreamIndex = -1;
         }
         else {
             cout << "MediaPlayer: Video decoder initialized successfully." << endl;
-            cout << "MediaPlayer: Decoder details - Width: " << m_videoDecoder->getWidth()
-                << ", Height: " << m_videoDecoder->getHeight()
-                << ", Format: " << av_get_pix_fmt_name(m_videoDecoder->getPixelFormat()) << endl;
         }
     }
     else {
         cout << "MediaPlayer: No video stream found." << endl;
     }
 
-    // 5. 如果音频流存在，则初始化音频解码器
+    // 5. 初始化音频解码器 (如果音频流存在)
     if (audioStreamIndex >= 0) {
         cout << "MediaPlayer: Audio stream found at index: " << audioStreamIndex << endl;
         AVCodecParameters* pAudioCodecParams = m_demuxer->getCodecParameters(audioStreamIndex);
-
         AVRational audioTimeBase = m_demuxer->getTimeBase(audioStreamIndex);
-
-        if (!pAudioCodecParams) {
-            cerr << "MediaPlayer Warning: Demuxer failed to get codec parameters for audio stream. Ignoring audio." << endl;
-            audioStreamIndex = -1;
-        }
-        else if (!m_audioDecoder->init(pAudioCodecParams, audioTimeBase, m_clockManager.get())) {
+        if (!pAudioCodecParams || !m_audioDecoder->init(pAudioCodecParams, audioTimeBase, m_clockManager.get())) {
             cerr << "MediaPlayer Warning: Failed to initialize audio decoder. Ignoring audio." << endl;
-            m_audioDecoder.reset();
             audioStreamIndex = -1;
         }
         else {
@@ -310,24 +322,10 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
         cout << "MediaPlayer: No audio stream found." << endl;
     }
 
-    // 6. 再次检查，如果经过初始化后所有流都失效了，也应报错退出
+    // 6. 再次检查，如果所有流都初始化失败，则报错
     if (videoStreamIndex < 0 && audioStreamIndex < 0) {
         cerr << "MediaPlayer Error: Failed to initialize any valid decoders." << endl;
-        m_demuxer->close();
         return -1;
-    }
-
-    // 7. 若存在视频流，准备视频相关资源
-    if (videoStreamIndex >= 0) {
-        cout << "MediaPlayer: Preparing video-specific resources (SWS context etc.)." << endl;
-        int dec_width = m_videoDecoder->getWidth();
-        int dec_height = m_videoDecoder->getHeight();
-
-        if (dec_width <= 0 || dec_height <= 0) {
-            cerr << "MediaPlayer Error: Decoder returned invalid dimensions (" << dec_width << "x" << dec_height << ")." << endl;
-            m_demuxer->close();
-            return -1;
-        }
     }
 
     cout << "MediaPlayer: FFmpeg demuxer and decoders initialization process finished." << endl;
@@ -466,7 +464,7 @@ void MediaPlayer::cleanup() {
     // 1、发送全局退出信号
     m_quit.store(true);
 
-    // 在等待线程之前，主动请求中断 FFmpeg 的阻塞操作。
+    // 请求解复用器中断
     // 这会立即唤醒可能卡在 av_read_frame() 或 avformat_open_input() 的解复用线程。
     if (m_demuxer) {
         // 由于 m_demuxer 是 IDemuxer 接口指针，需要将其安全地转换为 FFmpegDemuxer 类型
@@ -484,20 +482,20 @@ void MediaPlayer::cleanup() {
         std::lock_guard<std::mutex> lock(m_pause_mutex);
         m_pause_cond.notify_all();
     }
-    // 2.2 唤醒所有等待队列的解码/渲染线程
-    if (m_videoPacketQueue) m_videoPacketQueue->signal_eof();
-    if (m_audioPacketQueue) m_audioPacketQueue->signal_eof();
-    if (m_videoFrameQueue) m_videoFrameQueue->signal_eof();
-    if (m_audioFrameQueue) m_audioFrameQueue->signal_eof();
 
-    // 2.3 为了确保在 SDL_WaitEvent 中等待的主线程也能退出，再推一个退出事件
+    // 2.2 强制唤醒等待队列的线程
+    if (m_videoPacketQueue) m_videoPacketQueue->abort();
+    if (m_audioPacketQueue) m_audioPacketQueue->abort();
+    if (m_videoFrameQueue) m_videoFrameQueue->abort();
+    if (m_audioFrameQueue) m_audioFrameQueue->abort();
+
+    // 2.3 推送退出事件（确保在 SDL_WaitEvent 中等待的主线程也能退出）
     SDL_Event event;
     event.type = FF_QUIT_EVENT;
     SDL_PushEvent(&event);
 
     // 3、等待所有线程结束
     // 先等待生产者线程，再等待消费者线程，避免潜在死锁
-    // 现在所有线程都已被唤醒并会检测到 m_quit 标志，可以安全等待它们结束
     cout << "MediaPlayer: Waiting for threads to finish..." << endl;
     if (m_demuxThread) {
         cout << "MediaPlayer: Waiting for demux thread to finish..." << endl;

@@ -152,6 +152,14 @@ void FrameQueue::signal_eof() {
 	cond_producer.notify_all();// 通知所有等待的生产者线程
 }
 
+void FrameQueue::abort() {
+	std::unique_lock<std::mutex> lock(mutex);
+	m_abort_request.store(true);
+	lock.unlock();
+	cond_consumer.notify_all(); // 唤醒所有等待的消费者，让他们检查abort标志
+	cond_producer.notify_all();// 唤醒所有等待的生产者线程
+}
+
 bool FrameQueue::is_eof() const {
 	std::lock_guard<std::mutex> lock(mutex);
 	return eof_signaled && queue.empty();

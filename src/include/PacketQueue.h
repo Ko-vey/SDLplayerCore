@@ -24,10 +24,10 @@
 #include <mutex>
 #include <condition_variable>
 #include <chrono>	// std::chrono::milliseconds
+#include <atomic>
 
-//AVPacket 和 AVFrame
 extern "C" {
-#include <libavcodec/avcodec.h>
+#include <libavcodec/avcodec.h> // AVPacket & AVFrame
 }
 
 using namespace std;
@@ -35,30 +35,42 @@ using namespace std;
 class PacketQueue {
 private:
 	std::queue<AVPacket*> queue;
-	mutable std::mutex mutex;				// 可被访问、修改的数据类型；mutable 允许在const方法中lock
+	mutable std::mutex mutex;				// mutable 允许在 const 方法中 lock
 	std::condition_variable cond_consumer;	// 当队列为空时，消费者等待
-	std::condition_variable cond_producer;	// 当队列已满时，生产者等待
-	bool eof_signaled = false;
-	size_t max_size = 0;					// 0表示无限制，>0表示队列最大容量
+
+	std::atomic<bool> eof_signaled{ false };	// 流结束标志
+	std::atomic<bool> m_abort_request{ false }; // 强制中断标志
+	
+	// 统计相关
+	int64_t m_total_duration_ts = 0; // 队列中所有packet的总时长 (以AVStream->time_base为单位)
+	size_t m_total_bytes = 0;        // 队列中所有packet的总字节数
+
+	// 时长限制
+	size_t max_size = 0;             // 队列最大包数量限制 (0=无限制)
+	int64_t max_duration_ts = 0;     // 队列最大总时长限制 (0=无限制)
 
 public:
-	PacketQueue(size_t max_queue_size = 0);
+	/**
+	 * @brief 构造函数
+	 * @param max_packet_count 队列允许的最大包数量，0表示无限制
+	 * @param max_duration_in_ts 队列允许的最大缓冲时长（以AVStream->time_base为单位），0表示无限制
+	 */
+	PacketQueue(size_t max_packet_count = 0, int64_t max_duration_in_ts = 0);
 	~PacketQueue();
 
 	/**
-	* @brief 添加数据包到队列尾部，
-	* 内部会为packet创建一个新的引用副本进行存储。
-	* 当容器为满或为空时，会陷入阻塞。
-	* @return true - 成功，false - 失败（例如队列已满，或packet为null）
+	* @brief 添加数据包到队列尾部。
+	* 如果队列已满（包数量或总时长超出限制），将从队列头部丢弃最老的数据包（滑动窗口），直到有空间为止。
+	* 此函数不再阻塞。
+	* @return true - 成功，false - 失败（例如队列已中止或packet为null）
 	*/
 	bool push(AVPacket* packet);
 
 	/**
-	* @brief 从队列头部获取数据包，数据会引用到调用者提供的packet中
-	* @param packet: 调用者提供的AVPacket指针，用于接收数据。
-	* 调用前应确保其已分配(av_packet_alloc)，或将其之前引用的数据unref。本函数会先unref后再ref
-	* @param timeout_ms：等待超时时间（毫秒），<0:无限等待，0：非阻塞，>0：等待指定时间
-	* @return 成功获取packet返回true，失败则返回false（超时、队列为空且EOF、或队列为空的非阻塞调用）
+	* @brief 从队列头部获取数据包。
+	* @param packet 调用者提供的AVPacket指针，用于接收数据。
+	* @param timeout_ms 等待超时时间（毫秒）。<0:无限等待, 0:非阻塞, >0:等待指定时间。
+	* @return 成功获取返回true，失败返回false（超时、队列为空且EOF、或被abort）。
 	*/
 	bool pop(AVPacket* packet, int timeout_ms = -1);
 
@@ -68,14 +80,29 @@ public:
 	size_t size() const;
 
 	/**
-	* @brief 清空队列中的所有数据包，并释放其资源
+	* @brief 获取队列当前缓冲的总时长 (以时间基为单位)
+	*/
+	int64_t getTotalDuration() const;
+
+	/**
+	* @brief 获取队列当前缓冲的总字节数
+	*/
+	size_t getTotalBytes() const;
+
+	/**
+	* @brief 清空队列中的所有数据包，并重置所有统计信息
 	*/
 	void clear();
 
 	/**
-	* @brief 通知队列数据流结束（EOF）；会唤醒所有等待pop的数据和所有等待者
+	* @brief 通知队列数据流结束（EOF），会唤醒等待pop的消费者
 	*/
 	void signal_eof();
+
+	/**
+	* @brief 强制中断所有等待操作(push/pop)，用于程序退出
+	*/
+	void abort();
 
 	/**
 	* @brief 检查是否已通知EOF且队列已空

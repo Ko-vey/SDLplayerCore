@@ -24,10 +24,10 @@
 #include <mutex>
 #include <condition_variable>
 #include <chrono>	// std::chrono::milliseconds
+#include <atomic>
 
-//AVPacket 和 AVFrame
 extern "C" {
-#include <libavcodec/avcodec.h>
+#include <libavcodec/avcodec.h> // AVPacket & AVFrame
 }
 
 using namespace std;
@@ -35,10 +35,13 @@ using namespace std;
 class FrameQueue {
 private:
 	std::queue<AVFrame*> queue;
-	mutable std::mutex mutex;				// 可被访问、修改的数据类型；mutable 允许在const方法中lock
+	mutable std::mutex mutex;				// mutable 允许在const方法中lock
 	std::condition_variable cond_consumer;	// 当队列为空时，消费者等待
 	std::condition_variable cond_producer;	// 当队列已满时，生产者等待
-	bool eof_signaled = false;
+
+	std::atomic<bool> eof_signaled{ false };	// 流结束标志
+	std::atomic<bool> m_abort_request{ false }; // 强制中断标志
+
 	size_t max_size = 0;					// 0表示无限制，>0表示队列最大容量
 
 public:
@@ -73,9 +76,14 @@ public:
 	void clear();
 
 	/**
-	* @brief 通知队列数据流结束（EOF）；会唤醒所有等待pop的数据和所有等待者
+	* @brief 通知队列数据流结束（EOF）；会唤醒所有等待pop的消费者
 	*/
 	void signal_eof();
+
+	/**
+	* @brief 强制中断所有等待操作(push/pop)，用于程序退出
+	*/
+	void abort();
 
 	/**
 	* @brief 检查是否已通知EOF且队列已空

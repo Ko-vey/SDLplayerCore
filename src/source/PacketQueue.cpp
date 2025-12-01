@@ -21,7 +21,8 @@
 #include "../include/PacketQueue.h"
 #include <iostream>
 
-PacketQueue::PacketQueue(size_t max_queue_size):max_size(max_queue_size) {}
+PacketQueue::PacketQueue(size_t max_packet_count, int64_t max_duration_in_ts)
+	: max_size(max_packet_count), max_duration_ts(max_duration_in_ts) {}
 
 PacketQueue::~PacketQueue() { 
 	clear(); 
@@ -38,34 +39,50 @@ bool PacketQueue::push(AVPacket* packet) {
 		cerr << "PacketQueue::push: av_packet_alloc failed." << endl;
 		return false;
 	}
-
-	// 为输入packet的数据创建一个新的引用，并由pkt_clone持有
-	int ret = av_packet_ref(pkt_clone, packet);
-	if (ret < 0) {
-		cerr << "PacketQueue::push: av_packet_ref failed with error " << ret << endl;
-		av_packet_free(&pkt_clone); // 释放刚分配的pkt_clone结构
+	if (av_packet_ref(pkt_clone, packet) < 0) {
+		cerr << "PacketQueue::push: av_packet_ref failed." << endl;
+		av_packet_free(&pkt_clone);
 		return false;
 	}
 
 	std::unique_lock<std::mutex> lock(mutex);
 
-	// 如果设置了最大容量，并且队列已满，则等待
-	// 必须使用while循环来防止“虚假唤醒”
-	while (max_size > 0 && queue.size() >= max_size && !eof_signaled) {
-		//cerr << "PacketQueue::push: Queue is full. Holding packet and wait." << endl;
-		cond_producer.wait(lock);
-	}
-
-	// 如果在等待期间被通知EOF，则不再推入
-	if (eof_signaled) {
+	// 检查是否需要中止操作
+	if (m_abort_request.load() || eof_signaled.load()) {
+		av_packet_free(&pkt_clone);
 		return false;
 	}
 
-	queue.push(pkt_clone);
+	// “满则丢”的滑动窗口机制
+	// 如果队列超出限制，则从头部丢弃最老的数据包
+	while ((max_size > 0 && queue.size() >= max_size) ||
+		(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts))
+	{
+		if (queue.empty()) { // 一般不会发生，但用于安全检查
+			break;
+		}
 
-	lock.unlock(); // 在通知之前，尽早释放锁
-	// 通知一个正在等待的消费者，队列中有新数据了
-	cond_consumer.notify_one();
+		// 丢弃最老的包
+		AVPacket* oldest_pkt = queue.front();
+		queue.pop();
+
+		// 更新统计数据
+		m_total_duration_ts -= oldest_pkt->duration;
+		m_total_bytes -= oldest_pkt->size;
+
+		av_packet_free(&oldest_pkt);
+
+		// （可选）调试信息
+		// cerr << "PacketQueue: Dropped a packet to make space. Current size: " << queue.size() << ", duration: " << m_total_duration_ts << endl;
+	}
+
+	// 将新包入队并更新统计
+	queue.push(pkt_clone);
+	m_total_duration_ts += pkt_clone->duration;
+	m_total_bytes += pkt_clone->size;
+
+	lock.unlock();
+	cond_consumer.notify_one(); // 通知一个正在等待的消费者，有新数据了
 
 	return true;
 }
@@ -77,51 +94,46 @@ bool PacketQueue::pop(AVPacket* packet, int timeout_ms) {
 	}
 
 	std::unique_lock<std::mutex> lock(mutex);
-	
-	// 当队列为空且未收到EOF信号时等待
-	while (queue.empty() && !eof_signaled) {
-		if (timeout_ms == 0) { // 非阻塞
+
+	while (queue.empty() && !eof_signaled.load() && !m_abort_request.load()) {
+		if (timeout_ms == 0) {
 			return false;
 		}
-		if (timeout_ms < 0) { // 无限等待
+		if (timeout_ms < 0) {
 			cond_consumer.wait(lock);
 		}
 		else {
-			// 判断线程的唤醒是否是因为超时
-			if (cond_consumer.wait_for(lock, std::chrono::milliseconds(timeout_ms)) 
-				== std::cv_status::timeout) {
-				return false; // 等待超时
+			if (cond_consumer.wait_for(lock, std::chrono::milliseconds(timeout_ms)) == std::cv_status::timeout) {
+				return false;
 			}
 		}
 	}
 
-	// 如果队列为空且已收到EOF信号，则认为流结束
-	if (queue.empty() && eof_signaled) {
+	// 检查是否因中止或EOF退出等待
+	if (m_abort_request.load()) {
+		return false;
+	}
+	if (queue.empty() && eof_signaled.load()) {
 		return false;
 	}
 
-	// 从队列中取出一个包
 	AVPacket* src_pkt = queue.front();
 	queue.pop();
-	lock.unlock(); // 在执行FFmpeg操作前可以释放锁
 
-	// unref旧的，ref新的
+	// 同步更新统计数据
+	m_total_duration_ts -= src_pkt->duration;
+	m_total_bytes -= src_pkt->size;
+
+	lock.unlock();
+
 	av_packet_unref(packet);
-	int ret = av_packet_ref(packet, src_pkt);
-	if (ret < 0) {
-		cerr << "PacketQueue::pop: av_packet_ref failed to copy to output packet. Error: " << ret << endl;
-		// 即使引用失败，src_pkt 也必须被正确处理
-		// 此时用户提供的 packet 可能处于不确定状态，但仍需释放 src_pkt
+	if (av_packet_ref(packet, src_pkt) < 0) {
+		cerr << "PacketQueue::pop: av_packet_ref failed." << endl;
 		av_packet_free(&src_pkt);
-		// 返回 false，因为数据未能成功传递给调用者
 		return false;
 	}
 
-	//释放 src_pkt 本身（它在 push 时分配，其数据现在由外部 packet 引用）
-	av_packet_free(&src_pkt); // 释放开发者自己管理的副本的容器
-
-	// 通知一个可能在等待的生产者，队列中有空间了
-	cond_producer.notify_one();
+	av_packet_free(&src_pkt);
 
 	return true;
 }
@@ -131,6 +143,16 @@ size_t PacketQueue::size() const {
 	return queue.size();
 }
 
+int64_t PacketQueue::getTotalDuration() const {
+	std::lock_guard<std::mutex> lock(mutex);
+	return m_total_duration_ts;
+}
+
+size_t PacketQueue::getTotalBytes() const {
+	std::lock_guard<std::mutex> lock(mutex);
+	return m_total_bytes;
+}
+
 void PacketQueue::clear() {
 	std::unique_lock<std::mutex> lock(mutex);
 	while (!queue.empty()) {
@@ -138,22 +160,26 @@ void PacketQueue::clear() {
 		queue.pop();
 		av_packet_free(&pkt);
 	}
-	// eof_signaled 状态通常在clear时不改变，
-	// 因为clear可能是中间操作，EOF代表流的结束。
-	// 如果需要完全重置，可以添加一个reset()方法。
+	// 重置所有统计数据
+	m_total_duration_ts = 0;
+	m_total_bytes = 0;
 }
 
 void PacketQueue::signal_eof() {
 	std::unique_lock<std::mutex> lock(mutex);
-	eof_signaled = true;
+	eof_signaled.store(true);
 	lock.unlock();
-	// 唤醒所有等待的消费者和生产者，让他们能够检查eof_signaled标志并退出
-	cond_consumer.notify_all();// 通知所有等待的消费者线程EOF状态已改变
-	cond_producer.notify_all();// 通知所有等待的生产者线程
+	cond_consumer.notify_all();// 唤醒所有等待的消费者
+}
+
+void PacketQueue::abort() {
+	std::unique_lock<std::mutex> lock(mutex);
+	m_abort_request.store(true);
+	lock.unlock();
+	cond_consumer.notify_all(); // 唤醒所有等待的消费者，让他们检查abort标志
 }
 
 bool PacketQueue::is_eof() const {
 	std::lock_guard<std::mutex> lock(mutex);
-	return eof_signaled && queue.empty();
+	return eof_signaled.load() && queue.empty();
 }
-
