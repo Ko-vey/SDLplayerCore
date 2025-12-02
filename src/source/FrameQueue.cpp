@@ -38,33 +38,35 @@ bool FrameQueue::push(AVFrame* frame) {
 		cerr << "FrameQueue::push: av_frame_alloc failed." << endl;
 		return false;
 	}
-
 	// 为输入frame的数据创建一个新的引用，并由frame_clone持有
-	int ret = av_frame_ref(frame_clone, frame);
-	if (ret < 0) {
-		cerr << "FrameQueue::push: av_frame_ref failed with error " << ret << endl;
+	if (av_frame_ref(frame_clone, frame) < 0) {
+		cerr << "FrameQueue::push: av_frame_ref failed." << endl;
 		av_frame_free(&frame_clone); // 释放刚分配的frame_clone结构
 		return false;
 	}
 
 	std::unique_lock<std::mutex> lock(mutex);
 	
-	// 如果设置了最大容量，并且队列已满，则等待
-	// 必须使用while循环来防止“虚假唤醒”
-	while (max_size > 0 && queue.size() >= max_size && !eof_signaled) {
-		//cerr << "FrameQueue::push: Queue is full. Holding frame and wait." << endl;
-		cond_producer.wait(lock);
+	// 检查是否需要中止操作
+	if (m_abort_request.load() || eof_signaled.load()) {
+		av_frame_free(&frame_clone);
+		return false;
 	}
 
-	// 如果在等待期间被通知EOF，则不再推入
-	if (eof_signaled) {
-		return false;
+	// “满则丢”的滑动窗口机制
+	if (max_size > 0 && queue.size() >= max_size) {
+		// 丢弃队列头部的帧（最老的帧）来为新帧腾出空间
+		AVFrame* oldest_frame = queue.front();
+		queue.pop();
+		av_frame_free(&oldest_frame);
+		// 可选调试信息
+		//cerr << "FrameQueue: Dropped a frame to make space." << endl;
 	}
 
 	queue.push(frame_clone);
 
-	lock.unlock(); // 在通知之前，尽早释放锁
-	// 通知一个正在等待的消费者，队列中有新数据了
+	lock.unlock(); // 在通知前，尽早释放锁
+	// 通知一个在等待的消费者，队列中有新数据
 	cond_consumer.notify_one();
 
 	return true;
@@ -119,9 +121,6 @@ bool FrameQueue::pop(AVFrame* frame, int timeout_ms) {
 
 	// 释放 src_frame本身（它在 push 时分配，其数据现在由外部 frame 引用）
 	av_frame_free(&src_frame); // 释放开发者自己管理的副本的容器
-
-	// 通知一个可能在等待的生产者，队列中有空间了
-	cond_producer.notify_one();
 
 	return true;
 }
