@@ -33,11 +33,12 @@ public:
 	virtual ~IVideoDecoder() = default;
 
 	/**
-	* @brief 使用给定的编解码器参数，初始化视频解码器
-	* @param codecParams 指向从解封装器获取的视频流的 AVCodecParameters 的指针
+	* @brief 使用给定的编解码器参数，初始化视频解码器。
+	* @param codecParams 指向从解封装器获取的视频流的 AVCodecParameters 的指针。
+	* @param timeBase 视频流的时间基。
 	* @return 若初始化成功返回true，否则返回false。
 	*/
-	virtual bool init(AVCodecParameters* codecParams) = 0;
+	virtual bool init(AVCodecParameters* codecParams, AVRational timeBase) = 0;
 
 	/**
 	* @brief 将单个视频包解码为一个视频帧。

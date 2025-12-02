@@ -293,7 +293,11 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
     if (videoStreamIndex >= 0) {
         cout << "MediaPlayer: Video stream found at index: " << videoStreamIndex << endl;
         AVCodecParameters* pVideoCodecParams = m_demuxer->getCodecParameters(videoStreamIndex);
-        if (!pVideoCodecParams || !m_videoDecoder->init(pVideoCodecParams)) {
+
+        // 获取视频流的时间基
+        AVRational videoTimeBase = m_demuxer->getTimeBase(videoStreamIndex);
+
+        if (!pVideoCodecParams || !m_videoDecoder->init(pVideoCodecParams, videoTimeBase)) {
             cerr << "MediaPlayer Warning: Failed to initialize video decoder. Ignoring video." << endl;
             videoStreamIndex = -1;
         }
@@ -669,7 +673,62 @@ int MediaPlayer::video_decode_func() {
         return -1;
     }
 
-    AVFrame* decoded_frame = nullptr; // 将由 m_videoDecoder->decode() 分配
+    AVFrame* decoded_frame = nullptr;
+
+    // --- 起播缓冲逻辑 ---
+    // 目标起播缓冲时长：2.0 秒
+    const double STARTUP_BUFFER_DURATION_SEC = 2.0;
+    // 获取视频流的时间基
+    AVRational time_base = m_videoDecoder->getTimeBase();
+    int64_t startup_threshold_ts = 0;
+
+    if (time_base.den > 0) {
+        startup_threshold_ts = static_cast<int64_t>(STARTUP_BUFFER_DURATION_SEC / av_q2d(time_base));
+        cout << "MediaPlayer VideoDecodeThread: Waiting for buffer to fill " << STARTUP_BUFFER_DURATION_SEC
+            << "s (" << startup_threshold_ts << " ts)..." << endl;
+    }
+
+    // 缓冲等待循环
+    // 条件：未退出 && 未缓冲够 && 队列未满 && 未EOF
+    // 增加一个简单的超时计数防止死锁
+    int wait_count = 0;
+    const int MAX_WAIT_COUNT = 200; // 200 * 50ms = 10秒超时
+
+    while (!m_quit && startup_threshold_ts > 0) {
+        int64_t current_duration = m_videoPacketQueue->getTotalDuration();
+
+        // 1. 检查是否达到起播阈值
+        if (current_duration >= startup_threshold_ts) {
+            cout << "MediaPlayer VideoDecodeThread: Startup buffer threshold reached. Starting playback." << endl;
+            break;
+        }
+
+        // 2. 检查队列是否已经满了 (可能最大缓冲设置得比起播阈值小，或者包很多但时长短)
+        // 这种情况下也应该开始，否则永远达不到时长阈值
+        // PacketQueue 没有直接暴露 isFull，但如果包数量很大也可以开始
+        if (m_videoPacketQueue->size() > 100) { // 简单阈值，或根据实际情况调整
+            cout << "MediaPlayer VideoDecodeThread: Packet count high. Starting playback." << endl;
+            break;
+        }
+
+        // 3. 检查是否流已经结束 (例如短视频，总时长都不够起播阈值)
+        if (m_videoPacketQueue->is_eof()) {
+            cout << "MediaPlayer VideoDecodeThread: Stream EOF reached during buffering. Starting playback." << endl;
+            break;
+        }
+
+        // 4. 超时检查
+        if (++wait_count > MAX_WAIT_COUNT) {
+            cout << "MediaPlayer VideoDecodeThread: Buffering timed out. Starting playback forcefully." << endl;
+            break;
+        }
+
+        // 5. 响应暂停/退出
+        if (m_quit) break;
+
+        // 短暂休眠，避免忙等待占满CPU
+        SDL_Delay(50);
+    }
 
     while (!m_quit) {
         // 暂停处理逻辑
@@ -835,7 +894,50 @@ int MediaPlayer::audio_decode_func() {
         return -1;
     }
 
-    AVFrame* decoded_frame = nullptr; // 将由 m_audioDecoder->decode() 分配
+    AVFrame* decoded_frame = nullptr;
+
+    // --- 起播缓冲逻辑 ---
+    // 目标起播缓冲时长：例如 2.0 秒
+    const double STARTUP_BUFFER_DURATION_SEC = 2.0;
+    // 获取音频流的时间基 (注意：AudioDecoder 的 getTimeBase 返回的是初始化时传入的)
+    AVRational time_base = m_audioDecoder->getTimeBase();
+    int64_t startup_threshold_ts = 0;
+
+    if (time_base.den > 0) {
+        startup_threshold_ts = static_cast<int64_t>(STARTUP_BUFFER_DURATION_SEC / av_q2d(time_base));
+        cout << "MediaPlayer AudioDecodeThread: Waiting for buffer to fill " << STARTUP_BUFFER_DURATION_SEC
+            << "s (" << startup_threshold_ts << " ts)..." << endl;
+    }
+
+    int wait_count = 0;
+    const int MAX_WAIT_COUNT = 200; // 10秒超时
+
+    while (!m_quit && startup_threshold_ts > 0) {
+        int64_t current_duration = m_audioPacketQueue->getTotalDuration();
+
+        if (current_duration >= startup_threshold_ts) {
+            cout << "MediaPlayer AudioDecodeThread: Startup buffer threshold reached. Starting playback." << endl;
+            break;
+        }
+
+        if (m_audioPacketQueue->size() > 150) {
+            cout << "MediaPlayer AudioDecodeThread: Packet count high. Starting playback." << endl;
+            break;
+        }
+
+        if (m_audioPacketQueue->is_eof()) {
+            cout << "MediaPlayer AudioDecodeThread: Stream EOF reached during buffering. Starting playback." << endl;
+            break;
+        }
+
+        if (++wait_count > MAX_WAIT_COUNT) {
+            cout << "MediaPlayer AudioDecodeThread: Buffering timed out. Starting playback forcefully." << endl;
+            break;
+        }
+
+        if (m_quit) break;
+        SDL_Delay(50);
+    }
 
     while (!m_quit) {
         // 暂停处理逻辑

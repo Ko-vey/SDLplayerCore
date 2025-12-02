@@ -35,7 +35,7 @@ FFmpegVideoDecoder::~FFmpegVideoDecoder() {
 	close();
 }
 
-bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams) {
+bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams, AVRational timeBase) {
 	if (!codecParams) {
 		cerr << "FFmpegVideoDecoder::init Error: codecParams is null." << endl;
 		return false;
@@ -69,7 +69,10 @@ bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams) {
 		return false;
 	}
 
-	//示例：启用多线程解码（具体线程数可以配置，0 为自动）
+	// 手动设置时间基
+	m_codecContext->time_base = timeBase;
+
+	// 启用多线程解码（具体线程数可以配置，0 为自动）
 	//m_codecContext->thread_count = 0;
 	//m_codecContext->thread_type = FF_THREAD_FRAME;	// 或者 FF_THREAD_SLICE
 
@@ -80,7 +83,7 @@ bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams) {
 		return false;
 	}
 
-	cout << "FFmpegVideoDecoder initialized successfully with codec: " << codec->long_name << endl;
+	cout << "FFmpegVideoDecoder initialized successfully with codec: " << codec->long_name << ", TimeBase: " << timeBase.num << "/" << timeBase.den << endl;
 	return true;
 }
 
