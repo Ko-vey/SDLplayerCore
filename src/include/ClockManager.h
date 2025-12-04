@@ -29,7 +29,6 @@
 class ClockManager : public IClockManager {
 public:
     ClockManager();
-    // 让编译器的默认析构函数清理所有基本类型成员
     virtual ~ClockManager() = default;
 
     // IClockManager 接口实现
@@ -54,7 +53,7 @@ public:
     bool isPaused() const override;
 
 private:
-    // 不加锁的内部get方法
+    // 不加锁的内部Getters
     double getAudioClockTime_nolock();
     double getVideoClockTime_nolock();
     double getExternalClockTime_nolock();

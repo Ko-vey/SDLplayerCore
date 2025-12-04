@@ -22,10 +22,9 @@
 
 #include "SDL2/SDL_audio.h"	// SDL_AudioDeviceID
 
-// 表示确切的时钟类型
+// 确切的时钟类型
 enum class MasterClockType {
 	AUDIO,
-	VIDEO,
 	EXTERNAL
 };
 
@@ -54,9 +53,11 @@ public:
 	virtual double getMasterClockTime() = 0;
 
 	/**
-	* @brief 更新音频时钟的当前时间（单位：秒）
-	* @param pts 音频帧的显示时间戳。
-	*/
+	 * @brief 更新音频时钟的当前时间（单位：秒）
+	 * @warning 为了计算精确，务必在将音频数据写入 SDL 队列后调用此函数。
+	 * 传入的 pts 应当是【刚刚写入队列的那段音频数据的结束时间】。
+	 * 即：Current_Packet_Start_PTS + Current_Packet_Duration。
+	 */
 	virtual void setAudioClock(double pts) = 0;
 
 	/**

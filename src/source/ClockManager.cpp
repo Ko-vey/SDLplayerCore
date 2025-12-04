@@ -27,10 +27,17 @@ ClockManager::ClockManager() :
     m_audio_clock_time(0.0),
     m_start_time(0),
     m_paused_at(0),
-    m_paused(false),
-    m_master_clock_type(MasterClockType::AUDIO) {}
+    m_paused(true), // 构造时默认暂停，防止未初始化时钟乱跑
+    m_master_clock_type(MasterClockType::AUDIO),
+    m_audio_device_id(0),
+    m_audio_bytes_per_second(0),
+    m_has_audio_stream(false),
+    m_has_video_stream(false) 
+{
+}
 
 void ClockManager::init(bool has_audio, bool has_video) {
+    // init 内部调用 reset，会将状态置为 paused
     reset();
 
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -39,17 +46,13 @@ void ClockManager::init(bool has_audio, bool has_video) {
     m_has_audio_stream = has_audio;
     m_has_video_stream = has_video;
 
-    // 主时钟选择策略：
-    // 1. 音频时钟是最佳、最稳定的主时钟源。
-    // 2. 如果没有音频，必须使用独立于媒体流的外部（系统）时钟作为基准。
-    // 3. 视频时钟永远不作为主时钟，因为它需要一个外部基准来进行同步。
     if (m_has_audio_stream) {
         m_master_clock_type = MasterClockType::AUDIO;
-        std::cout << "ClockManager: Audio stream present. Initializing with AUDIO master clock." << std::endl;
+        std::cout << "ClockManager: Init with AUDIO master clock." << std::endl;
     }
     else {
         m_master_clock_type = MasterClockType::EXTERNAL;
-        std::cout << "ClockManager: No audio stream. Initializing with EXTERNAL master clock as the stable time source." << std::endl;
+        std::cout << "ClockManager: Init with EXTERNAL master clock." << std::endl;
     }
 }
 
@@ -59,23 +62,21 @@ void ClockManager::reset() {
     m_video_clock_time = 0.0;
     m_audio_clock_time = 0.0;
 
-    // 重置外部时钟基准
+    // 重置时，默认为暂停状态。
+    // 避免 External Clock 在加载文件期间就开始空转计时。
+    m_paused = true;
     m_start_time = SDL_GetTicks64(); // 获取自SDL初始化以来的毫秒数
-    
-    m_paused_at = 0;
-    m_paused = false;
+    m_paused_at = m_start_time; // 暂停时间点对齐到当前
 
-    // 恢复到默认主时钟
     m_master_clock_type = MasterClockType::AUDIO;
 
-    // 重置音频硬件参数相关的状态
     m_has_audio_stream = false;
     m_audio_device_id = 0;
     m_audio_bytes_per_second = 0;
 
     m_has_video_stream = false;
     
-    std::cout << "ClockManager reset." << std::endl;
+    std::cout << "ClockManager reset (paused)." << std::endl;
 }
 
 double ClockManager::getExternalClockTime() {
@@ -86,11 +87,13 @@ double ClockManager::getExternalClockTime() {
 double ClockManager::getExternalClockTime_nolock() {
     Uint64 now;
     if (m_paused) {
+        // 如果处于暂停，时间定格在暂停那一刻
         now = m_paused_at;
     }
     else {
         now = SDL_GetTicks64();
     }
+    // 外部时钟 = 当前（或暂停）时刻 - 启动时刻
     return (double)(now - m_start_time) / 1000.0;
 }
 
@@ -99,31 +102,14 @@ void ClockManager::setMasterClock(MasterClockType type) {
     m_master_clock_type = type;
 }
 
-// 主时钟的选择逻辑
 double ClockManager::getMasterClockTime() {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    if (m_master_clock_type == MasterClockType::VIDEO) {
-        if (m_has_video_stream) {
-            return getVideoClockTime_nolock();
-        }
-        // 如果主时钟是视频但视频流不存在（异常情况），则回退
-        return getExternalClockTime_nolock();
+    // 优先使用音频时钟，但如果配置了音频流却因为设备未就绪等原因无效，则自动回退
+    if (m_master_clock_type == MasterClockType::AUDIO && m_has_audio_stream) {
+        return getAudioClockTime_nolock();
     }
-    else if (m_master_clock_type == MasterClockType::AUDIO) {
-        if (m_has_audio_stream) {
-            return getAudioClockTime_nolock();
-        }
-        // 如果主时钟是音频但音频流不存在，则尝试回退到视频
-        if (m_has_video_stream) {
-            return getVideoClockTime_nolock();
-        }
-        // 如果视频也没有，最终回退到外部
-        return getExternalClockTime_nolock();
-    }
-    else { // EXTERNAL
-        return getExternalClockTime_nolock();
-    }
+    return getExternalClockTime_nolock();
 }
 
 void ClockManager::setVideoClock(double pts) {
@@ -142,38 +128,46 @@ double ClockManager::getVideoClockTime_nolock() {
 
 void ClockManager::setAudioHardwareParams(SDL_AudioDeviceID deviceId, int bytesPerSecond) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    // 断言，确保在调用此函数时，确实有音频流
-    assert(m_has_audio_stream && "setAudioHardwareParams called but no audio stream was reported on init");
+    assert(m_has_audio_stream && "setAudioHardwareParams called without audio stream");
+
+    // 参数校验，防止除零
+    if (bytesPerSecond <= 0) {
+        std::cerr << "ClockManager Error: Invalid bytesPerSecond: " << bytesPerSecond << std::endl;
+        return;
+    }
+
     m_audio_device_id = deviceId;
     m_audio_bytes_per_second = bytesPerSecond;
 }
 
-// 此方法仅存储最新帧的PTS
 void ClockManager::setAudioClock(double pts) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_audio_clock_time = pts;
 }
 
-// 实现精确的音频时钟计算
 double ClockManager::getAudioClockTime() {
     std::lock_guard<std::mutex> lock(m_mutex);
     return getAudioClockTime_nolock();
 }
 
 double ClockManager::getAudioClockTime_nolock() {
-    if (!m_has_audio_stream || m_audio_device_id == 0 || m_audio_bytes_per_second == 0) {
+    if (!m_has_audio_stream || m_audio_device_id == 0 || m_audio_bytes_per_second <= 0) {
         return 0.0;
     }
 
-    // 基础时间是最后推送的音频帧的PTS
+    // 基础时间是最后推送到 SDL 的音频帧的结束时间戳 (PTS)
     double pts = m_audio_clock_time;
-    // 获取SDL音频队列中还未播放的数据字节数
+
+    // 获取 SDL 内部缓冲区中剩余未播放的字节数
+    // 注意：SDL_GetQueuedAudioSize 是线程安全的，但在 lock 保护下调用也没问题
     Uint32 buffered_bytes = SDL_GetQueuedAudioSize(m_audio_device_id);
-    // 计算这些未播放数据的时长（秒）
+
+    // 计算缓冲区的延迟时间
     double buffered_duration_sec = (double)buffered_bytes / (double)m_audio_bytes_per_second;
-    // 当前的音频播放时间 = 最新PTS - 未播放时长
-    pts -= buffered_duration_sec;
-    return pts;
+
+    // 当前正在播放的声音时间 = 缓冲末尾时间 - 缓冲区长度
+    // 公式： \[ T_{play} = PTS_{last\_written} - \frac{Bytes_{buffered}}{Bytes_{per\_second}} \]
+    return pts - buffered_duration_sec;
 }
 
 void ClockManager::pause() {
@@ -193,7 +187,8 @@ void ClockManager::pause() {
 void ClockManager::resume() {
     if (m_paused) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        // 恢复时，将暂停期间的时间加到起始时间上，以抵消暂停的影响
+        // 核心逻辑：恢复时，将暂停期间流逝的时间加到 m_start_time 上
+        // 这样 (Now - Start) 就会剔除掉暂停的这段时长
         Uint64 paused_duration = SDL_GetTicks64() - m_paused_at;
         m_start_time += paused_duration;
         m_paused = false;
