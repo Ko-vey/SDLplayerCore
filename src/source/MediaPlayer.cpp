@@ -465,73 +465,79 @@ void MediaPlayer::cleanup_ffmpeg_resources() {
 void MediaPlayer::cleanup() {
     cout << "MediaPlayer: Initiating full cleanup..." << endl;
 
-    // 1、发送全局退出信号
+    // 1、发送全局退出信号 (所有线程循环的通用退出条件)
     m_quit.store(true);
+    // 唤醒所有可能在暂停中等待的线程，让它们能检查到 m_quit
+    m_pause_cond.notify_all();
 
-    // 请求解复用器中断
-    // 这会立即唤醒可能卡在 av_read_frame() 或 avformat_open_input() 的解复用线程。
+    // --- 第 1 阶段：停止生产者 (Demuxer) ---
+    cout << "MediaPlayer: Shutting down producer threads..." << endl;
     if (m_demuxer) {
-        // 由于 m_demuxer 是 IDemuxer 接口指针，需要将其安全地转换为 FFmpegDemuxer 类型
-        // 以便调用其特有的 requestAbort 方法。
+        // 仅向 demuxer 发送中断信号
+        // m_demuxer 为 IDemuxer，需要安全向下转型为 FFmpegDemuxer，以调用其特有的 requestAbort()。
         FFmpegDemuxer* ffmpeg_demuxer = dynamic_cast<FFmpegDemuxer*>(m_demuxer.get());
         if (ffmpeg_demuxer) {
             cout << "MediaPlayer: Requesting demuxer interrupt..." << endl;
             ffmpeg_demuxer->requestAbort(true);
         }
     }
-
-    // 2. 唤醒其他可能在等待的线程
-    // 2.1 唤醒可能在暂停中等待的线程
-    {
-        std::lock_guard<std::mutex> lock(m_pause_mutex);
-        m_pause_cond.notify_all();
-    }
-
-    // 2.2 强制唤醒等待队列的线程
-    if (m_videoPacketQueue) m_videoPacketQueue->abort();
-    if (m_audioPacketQueue) m_audioPacketQueue->abort();
-    if (m_videoFrameQueue) m_videoFrameQueue->abort();
-    if (m_audioFrameQueue) m_audioFrameQueue->abort();
-
-    // 2.3 推送退出事件（确保在 SDL_WaitEvent 中等待的主线程也能退出）
-    SDL_Event event;
-    event.type = FF_QUIT_EVENT;
-    SDL_PushEvent(&event);
-
-    // 3、等待所有线程结束
-    // 先等待生产者线程，再等待消费者线程，避免潜在死锁
-    cout << "MediaPlayer: Waiting for threads to finish..." << endl;
+    // 立即等待 Demuxer 线程结束，保证不再产生新的 AVPacket
+    // Demuxer 退出前会向 Packet Queues 发送 EOF 信号
     if (m_demuxThread) {
         cout << "MediaPlayer: Waiting for demux thread to finish..." << endl;
         SDL_WaitThread(m_demuxThread, nullptr);
         cout << "MediaPlayer: Demux thread finished." << endl;
     }
+
+    // --- 第 2 阶段：停止中间处理者 (Decoders) ---
+    cout << "MediaPlayer: Shutting down decoder threads..." << endl;
+
+    // 在等待 Decoder 线程前，
+    // 必须 abort 其输入队列 (PacketQueue) 和输出队列 (FrameQueue)。
+    // 确保无论 Decoder 卡在 pop() 还是 push()都能被唤醒。
+    if (m_videoPacketQueue) m_videoPacketQueue->abort();
+    if (m_audioPacketQueue) m_audioPacketQueue->abort();
+    if (m_videoFrameQueue) m_videoFrameQueue->abort();
+    if (m_audioFrameQueue) m_audioFrameQueue->abort();
+
     if (m_videoDecodeThread) {
         cout << "MediaPlayer: Waiting for video decode thread to finish..." << endl;
         SDL_WaitThread(m_videoDecodeThread, nullptr);
         cout << "MediaPlayer: Video decode thread finished." << endl;
-    }
-    if (m_videoRenderthread) {
-        cout << "MediaPlayer: Waiting for video render thread to finish..." << endl;
-        SDL_WaitThread(m_videoRenderthread, nullptr);
-        cout << "MediaPlayer: Refresh thread finished." << endl;
     }
     if (m_audioDecodeThread) {
         cout << "MediaPlayer: Waiting for audio decode thread to finish..." << endl;
         SDL_WaitThread(m_audioDecodeThread, nullptr);
         cout << "MediaPlayer: Audio decode thread finished." << endl;
     }
+    // 此刻保证不会再有新的 AVFrame 产生。
+    // Decoder 退出前会向 Frame Queues 发送 EOF 信号。
+
+    // --- 第 3 阶段：停止消费者 (Renderers) ---
+    cout << "MediaPlayer: Shutting down consumer threads..." << endl;
+    // 渲染线程会因为 FrameQueue 的 EOF 而自然退出。
+
+    // 推送退出事件，确保主线程的 SDL_WaitEvent 也能退出
+    SDL_Event event;
+    event.type = FF_QUIT_EVENT;
+    SDL_PushEvent(&event);
+
+    if (m_videoRenderthread) {
+        cout << "MediaPlayer: Waiting for video render thread to finish..." << endl;
+        SDL_WaitThread(m_videoRenderthread, nullptr);
+        cout << "MediaPlayer: Video render thread finished." << endl;
+    }
     if (m_audioRenderThread) {
         cout << "MediaPlayer: Waiting for audio render thread to finish..." << endl;
         SDL_WaitThread(m_audioRenderThread, nullptr);
         cout << "MediaPlayer: Audio render thread finished." << endl;
     }
-    cout << "MediaPlayer: All threads have been joined. Cleaning up resources..." << endl;
+    cout << "MediaPlayer: All threads have been joined." << endl;
 
-    // 线程已全部停止，按逻辑顺序释放所有资源
+    // --- 第 4 阶段：清理资源 ---
+    cout << "MediaPlayer: Cleaning up resources..." << endl;
 
-    // 4. 释放SDL渲染器
-    // SDL渲染器依赖FFmpeg信息，必须先于FFmpeg清理
+    // 释放SDL渲染器(依赖于FFmpeg信息)
     if (m_audioRenderer) {
         m_audioRenderer.reset();
         cout << "MediaPlayer: Audio Renderer cleaned up." << endl;
@@ -541,23 +547,21 @@ void MediaPlayer::cleanup() {
         cout << "MediaPlayer: Video Renderer cleaned up." << endl;
     }
 
-    // 5. 释放FFmpeg核心资源
+    // 释放FFmpeg核心资源
     cleanup_ffmpeg_resources();
 
-    // 6. 释放队列和时钟
-    // 队列中可能还存有 AVPacket/AVFrame，它们的清理依赖 FFmpeg 库
-    // 所以在 cleanup_ffmpeg_resources 之后进行
+    // 释放队列和时钟
     if (m_videoPacketQueue) {
         m_videoPacketQueue.reset();
         cout << "MediaPlayer: Video packet queue cleaned up." << endl;
     }
-    if (m_videoFrameQueue) {
-        m_videoFrameQueue.reset();
-        cout << "MediaPlayer: Video frame queue cleaned up." << endl;
-    }
     if (m_audioPacketQueue) {
         m_audioPacketQueue.reset();
         cout << "MediaPlayer: Audio packet queue cleaned up." << endl;
+    }
+    if (m_videoFrameQueue) {
+        m_videoFrameQueue.reset();
+        cout << "MediaPlayer: Video frame queue cleaned up." << endl;
     }
     if (m_audioFrameQueue) {
         m_audioFrameQueue.reset();
@@ -645,7 +649,6 @@ int MediaPlayer::demux_thread_func() {
     }
 
     av_packet_free(&demux_packet); // 释放本地包
-    cout << "MediaPlayer: Demux thread finished." << endl;
 
     // 确保即使循环因 m_quit 退出，EOF也会发送
     if (m_videoPacketQueue && !m_videoPacketQueue->is_eof()) {
@@ -738,17 +741,26 @@ int MediaPlayer::video_decode_func() {
         }
         if (m_quit) break;
 
-        if (!m_videoPacketQueue->pop(m_decodingVideoPacket, 100)) {
+        if (!m_videoPacketQueue->pop(m_decodingVideoPacket, -1)) {
+            // 检查 EOF，处理正常的流结束冲洗
             if (m_videoPacketQueue->is_eof()) {
                 cout << "MediaPlayer VideoDecodeThread: Packet queue EOF, starting to flush decoder." << endl;
                 int flush_ret = m_videoDecoder->decode(nullptr, &decoded_frame); // 发送 nullptr 来冲洗
                 while (flush_ret == 0) {
                     if (decoded_frame) {
-                        if (!m_videoFrameQueue->push(decoded_frame)) { // FrameQueue::push 会 ref
-                            cerr << "MediaPlayer VideoDecodeThread: Failed to push flushed frame to frame queue." << endl;
+                        if (!m_videoFrameQueue->push(decoded_frame)) {
+                            if (m_quit.load()) {
+                                cout << "MediaPlayer VideoDecodeThread: Discarding flushed frame as shutdown is in progress." << endl;
+                            }
+                            else {
+                                cerr << "MediaPlayer VideoDecodeThread: Failed to push flushed frame to frame queue." << endl;
+                            }
+                            // 无论如何都要释放 frame
+                            av_frame_free(&decoded_frame);
+                            // 下游队列已满/中止，无法继续推送，应中断冲洗
+                            break;
                         }
-                        av_frame_free(&decoded_frame); // 释放 decode() 分配的 shell
-                        // decoded_frame 现在无效
+                        av_frame_free(&decoded_frame);
                     }
                     flush_ret = m_videoDecoder->decode(nullptr, &decoded_frame); // 尝试获取更多
                 }
@@ -764,21 +776,26 @@ int MediaPlayer::video_decode_func() {
                 break;
             }
             else {
-                continue;
+                // abort()，直接退出
+                cout << "MediaPlayer VideoDecodeThread: Packet queue aborted, exiting loop." << endl;
             }
+            break; // 退出主循环
         }
 
         int decode_ret = m_videoDecoder->decode(m_decodingVideoPacket, &decoded_frame);
         av_packet_unref(m_decodingVideoPacket);
 
-        if (decode_ret == 0) {
-            if (decoded_frame) {
-                if (!m_videoFrameQueue->push(decoded_frame)) { // FrameQueue::push 会 ref
+        if (decode_ret == 0 && decoded_frame) {
+            if (!m_videoFrameQueue->push(decoded_frame)) {
+                // 检查是不是因为程序正在退出
+                if (m_quit.load()) {
+                    cout << "MediaPlayer VideoDecodeThread: Discarding frame as shutdown is in progress." << endl;
+                }
+                else {
                     cerr << "MediaPlayer VideoDecodeThread: Failed to push decoded frame to frame queue." << endl;
                 }
-                av_frame_free(&decoded_frame);
-                // decoded_frame 现在无效
             }
+            av_frame_free(&decoded_frame);
         }
         else if (decode_ret == AVERROR(EAGAIN)) {
             // 继续循环，尝试发送下一个包或接收帧
@@ -803,7 +820,6 @@ int MediaPlayer::video_decode_func() {
         m_videoFrameQueue->signal_eof();
     }
 
-    cout << "MediaPlayer: Video decode thread finished." << endl;
     return 0;
 }
 
@@ -827,8 +843,8 @@ int MediaPlayer::video_render_func() {
         }
         if (m_quit) break;
 
-        // 尝试从队列获取新帧；使用带超时的pop，防止永久阻塞
-        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, 100);
+        // 尝试从队列获取新帧
+        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, -1);
 
         if (got_new_frame) {
             // 计算需要延迟多久
@@ -863,12 +879,8 @@ int MediaPlayer::video_render_func() {
             av_frame_unref(m_renderingVideoFrame);
         }
         else {
-            // 如果队列空了且是EOF，则线程退出
-            if (m_videoFrameQueue->is_eof()) {
-                cout << "MediaPlayer VideoRenderThread: Frame queue EOF and empty. Exiting." << endl;
-                break;
-            }
-            // 其他情况（如超时），循环继续，等待下一帧
+            cout << "MediaPlayer VideoRenderThread: pop() returned false, exiting loop." << endl;
+            break;
         }
     }
 
@@ -877,7 +889,6 @@ int MediaPlayer::video_render_func() {
     event.type = FF_QUIT_EVENT;
     SDL_PushEvent(&event);
 
-    cout << "MediaPlayer: Video render thread finished. Total frames rendered: " << get_frame_cnt() << endl;
     return 0;
 }
 
@@ -948,8 +959,8 @@ int MediaPlayer::audio_decode_func() {
         if (m_quit) break;
 
         // 1. 从音频包队列中取出一个包
-        if (!m_audioPacketQueue->pop(m_decodingAudioPacket, 100)) {
-            // 如果pop失败，检查是否是由于EOF
+        if (!m_audioPacketQueue->pop(m_decodingAudioPacket, -1)) {
+            // 检查 EOF
             if (m_audioPacketQueue->is_eof()) {
                 cout << "MediaPlayer AudioDecodeThread: Packet queue EOF, starting to flush decoder." << endl;
 
@@ -957,10 +968,18 @@ int MediaPlayer::audio_decode_func() {
                 int flush_ret = m_audioDecoder->decode(nullptr, &decoded_frame);
                 while (flush_ret == 0) { // 持续获取帧直到解码器无更多输出
                     if (decoded_frame) {
-                        if (!m_audioFrameQueue->push(decoded_frame)) { // FrameQueue::push 会 ref
-                            cerr << "MediaPlayer AudioDecodeThread: Failed to push flushed frame to frame queue." << endl;
+                        if (!m_audioFrameQueue->push(decoded_frame)) {
+                            if (m_quit.load()) {
+                                cout << "MediaPlayer AudioDecodeThread: Discarding flushed frame as shutdown is in progress." << endl;
+                            }
+                            else {
+                                cerr << "MediaPlayer AudioDecodeThread: Failed to push flushed frame to frame queue." << endl;
+                            }
+                            // 始终释放 frame
+                            av_frame_free(&decoded_frame);
+                            // 下游队列已满/中止，无法继续推送，中断冲洗
+                            break;
                         }
-                        // decode() 分配了新的帧 或 重用了旧的，必须释放其外壳(shell)
                         av_frame_free(&decoded_frame);
                     }
                     // 尝试获取下一个冲洗帧
@@ -979,23 +998,26 @@ int MediaPlayer::audio_decode_func() {
                 break; // 退出循环
             }
             else {
-                // pop 超时，继续循环
-                continue;
+                cout << "MediaPlayer AudioDecodeThread: Packet queue aborted, exiting loop." << endl;
             }
+            break; // 退出循环
         }
 
         // 2. 解码数据包
         int decode_ret = m_audioDecoder->decode(m_decodingAudioPacket, &decoded_frame);
         av_packet_unref(m_decodingAudioPacket); // 解码后不再需要此数据包
 
-        if (decode_ret == 0) {
-            if (decoded_frame) {
-                if (!m_audioFrameQueue->push(decoded_frame)) {
+        if (decode_ret == 0 && decoded_frame) {
+            if (!m_audioFrameQueue->push(decoded_frame)) {
+                // 检查是不是因为程序正在退出
+                if (m_quit.load()) {
+                    cout << "MediaPlayer AudioDecodeThread: Discarding frame as shutdown is in progress." << endl;
+                }
+                else {
                     cerr << "MediaPlayer AudioDecodeThread: Failed to push decoded frame to frame queue." << endl;
                 }
-                // 释放帧外壳
-                av_frame_free(&decoded_frame);
             }
+            av_frame_free(&decoded_frame);
         }
         else if (decode_ret == AVERROR(EAGAIN)) {
             // 解码器需要更多输入，继续循环以获取下一个包
@@ -1021,7 +1043,6 @@ int MediaPlayer::audio_decode_func() {
         m_audioFrameQueue->signal_eof();
     }
 
-    cout << "MediaPlayer: Audio decode thread finished." << endl;
     return 0;
 }
 
@@ -1045,13 +1066,10 @@ int MediaPlayer::audio_render_func() {
         }
         if (m_quit) break;
 
-        // 从音频帧队列中取出一帧，设置100ms超时
-        if (!m_audioFrameQueue->pop(m_renderingAudioFrame, 100)) {
-            if (m_audioFrameQueue->is_eof()) {
-                cout << "MediaPlayer AudioRenderThread: Frame queue EOF and empty. Exiting." << endl;
-                break;
-            }
-            continue; // 超时，继续循环检查退出和暂停状态
+        // 从音频帧队列中取出一帧
+        if (!m_audioFrameQueue->pop(m_renderingAudioFrame, -1)) {
+            cout << "MediaPlayer AudioRenderThread: pop() returned false, exiting loop." << endl;
+            break;
         }
 
         // 调用渲染器来处理这一帧
@@ -1066,6 +1084,6 @@ int MediaPlayer::audio_render_func() {
         // 释放对帧数据的引用，以便 m_renderingAudioFrame 可以被重用
         av_frame_unref(m_renderingAudioFrame);
     }
-    cout << "MediaPlayer: Audio render thread finished." << endl;
+
     return 0;
 }

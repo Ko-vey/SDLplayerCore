@@ -38,35 +38,40 @@ bool FrameQueue::push(AVFrame* frame) {
 		cerr << "FrameQueue::push: av_frame_alloc failed." << endl;
 		return false;
 	}
+
 	// 为输入frame的数据创建一个新的引用，并由frame_clone持有
-	if (av_frame_ref(frame_clone, frame) < 0) {
-		cerr << "FrameQueue::push: av_frame_ref failed." << endl;
-		av_frame_free(&frame_clone); // 释放刚分配的frame_clone结构
+	int ret = av_frame_ref(frame_clone, frame);
+	if (ret < 0) {
+		cerr << "FrameQueue::push: av_frame_ref failed with error " << ret << endl;
+		av_frame_free(&frame_clone);
 		return false;
 	}
 
 	std::unique_lock<std::mutex> lock(mutex);
 	
-	// 检查是否需要中止操作
-	if (m_abort_request.load() || eof_signaled.load()) {
+	// 当队列满时，只要没有收到 abort 请求，就继续等待
+	while (max_size > 0 && queue.size() >= max_size && !m_abort_request.load()) {
+		//cerr << "FrameQueue::push: Queue is full. Holding frame and wait." << endl;
+		cond_producer.wait(lock);
+	}
+
+	// 等待结束后，再次检查是否是由于 abort 被唤醒
+	if (m_abort_request.load()) {
+		// 如果是 abort 导致的唤醒，则不再推入数据，并释放已克隆的帧，防止内存泄漏
+		av_frame_free(&frame_clone);
+		// cerr << "FrameQueue::push: Abort requested while waiting to push. Discarding frame." << endl;
+		return false;
+	}
+
+	// 如果在等待期间被通知EOF，则不再推入
+	if (eof_signaled.load()) {
 		av_frame_free(&frame_clone);
 		return false;
 	}
 
-	// “满则丢”的滑动窗口机制
-	if (max_size > 0 && queue.size() >= max_size) {
-		// 丢弃队列头部的帧（最老的帧）来为新帧腾出空间
-		AVFrame* oldest_frame = queue.front();
-		queue.pop();
-		av_frame_free(&oldest_frame);
-		// 可选调试信息
-		//cerr << "FrameQueue: Dropped a frame to make space." << endl;
-	}
-
 	queue.push(frame_clone);
 
-	lock.unlock(); // 在通知前，尽早释放锁
-	// 通知一个在等待的消费者，队列中有新数据
+	lock.unlock();
 	cond_consumer.notify_one();
 
 	return true;
@@ -80,8 +85,8 @@ bool FrameQueue::pop(AVFrame* frame, int timeout_ms) {
 
 	std::unique_lock<std::mutex> lock(mutex);
 
-	// 当队列为空且未收到EOF信号时等待
-	while (queue.empty() && !eof_signaled) {
+	// 当队列为空、且未收到EOF信号、且未收到中断信号时 等待
+	while (queue.empty() && !eof_signaled.load() && !m_abort_request.load()) {
 		if (timeout_ms == 0) { // 非阻塞
 			return false;
 		}
@@ -97,30 +102,40 @@ bool FrameQueue::pop(AVFrame* frame, int timeout_ms) {
 		}
 	}
 
-	// 如果队列为空且已收到EOF信号，则认为流结束
-	if (queue.empty() && eof_signaled) {
+	// 检查唤醒的原因
+	// 是中断信号生效
+	if (m_abort_request.load()) {
+		return false;
+	}
+	// 是队列为空且已收到EOF信号，认为流结束
+	if (queue.empty() && eof_signaled.load()) {
+		return false;
+	}
+
+	// 如果队列仍然是空的 (可能发生了虚假唤醒且没有abort/eof)，也返回false
+	if (queue.empty()) {
 		return false;
 	}
 
 	// 从队列中取出一个帧
 	AVFrame* src_frame = queue.front();
 	queue.pop();
-	lock.unlock(); // 在执行FFmpeg操作前可以释放锁
+	lock.unlock();
 
 	// unref旧的，ref新的
 	av_frame_unref(frame);
 	int ret = av_frame_ref(frame, src_frame);
 	if (ret < 0) {
 		cerr << "FrameQueue::pop: av_frame_ref failed to copy to output frame. Error: " << ret << endl;
-		// 即使引用失败，src_frame 也必须被正确处理
-		// 此时用户提供的 frame 可能处于不确定状态，但仍需释放 src_frame
+		// 即使引用失败，src_frame 也必须被释放
 		av_frame_free(&src_frame);
-		// 返回 false，因为数据未能成功传递给调用者
+		// 数据未能成功传递给调用者
 		return false;
 	}
-
-	// 释放 src_frame本身（它在 push 时分配，其数据现在由外部 frame 引用）
-	av_frame_free(&src_frame); // 释放开发者自己管理的副本的容器
+	// 释放 src_frame 本身（在 push 时分配，其数据现在由外部 frame 引用）
+	av_frame_free(&src_frame);
+	// 通知一个可能在等待的生产者
+	cond_producer.notify_one();
 
 	return true;
 }
