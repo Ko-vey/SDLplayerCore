@@ -36,19 +36,31 @@ using namespace std;
 // 初始化所有组件并启动工作线程，失败时抛出 std::runtime_error
 MediaPlayer::MediaPlayer(const string& filepath) :
     m_quit(false),
-    m_pause(false),
+    m_playerState(PlayerState::BUFFERING),
+    m_demuxer_eof(false),
     videoStreamIndex(-1),
     audioStreamIndex(-1),
+    frame_cnt(0),
+    m_videoPacketQueue(nullptr),
+    m_videoFrameQueue(nullptr),
+    m_audioPacketQueue(nullptr),
+    m_audioFrameQueue(nullptr),
     m_decodingVideoPacket(nullptr),
     m_renderingVideoFrame(nullptr),
     m_decodingAudioPacket(nullptr),
     m_renderingAudioFrame(nullptr),
+    m_demuxer(nullptr),
+    m_videoDecoder(nullptr),
+    m_audioDecoder(nullptr),
+    m_videoRenderer(nullptr),
+    m_audioRenderer(nullptr),
+    m_clockManager(nullptr),
     m_demuxThread(nullptr),
     m_videoDecodeThread(nullptr),
     m_videoRenderthread(nullptr),
     m_audioDecodeThread(nullptr),
     m_audioRenderThread(nullptr),
-    frame_cnt(0)
+    m_controlThread(nullptr)
 {
     cout << "MediaPlayer: Initializing..." << endl;
 
@@ -123,7 +135,7 @@ void MediaPlayer::init_ffmpeg_resources(const std::string& filepath) {
     m_videoDecoder = std::make_unique<FFmpegVideoDecoder>();
     m_audioDecoder = std::make_unique<FFmpegAudioDecoder>();
 
-    // 调用集成的解封装器和解码器初始化函数
+    // 调用集成的解复用器和解码器初始化函数
     if (init_demuxer_and_decoders(filepath) != 0) {
         // 不在这里清理，直接抛出异常，让主catch块处理
         throw std::runtime_error("FFmpeg Init Error: Demuxer/Decoder initialization failed.");
@@ -204,25 +216,40 @@ void MediaPlayer::init_sdl_audio_renderer() {
 void MediaPlayer::start_threads() {
     cout << "MediaPlayer: Starting worker threads..." << endl;
 
-    // 启动解封装线程
+    // 启动解复用线程
     m_demuxThread = SDL_CreateThread(demux_thread_entry, "DemuxThread", this);
-    if (!m_demuxThread) throw std::runtime_error("Thread Error: Could not create demux thread.");
+    if (!m_demuxThread) {
+        throw std::runtime_error("Thread Error: Could not create demux thread.");
+    }
     // 启动视频解码和渲染线程
     if (videoStreamIndex >= 0) {
         m_videoDecodeThread = SDL_CreateThread(video_decode_thread_entry, "VideoDecodeThread", this);
-        if (!m_videoDecodeThread) throw std::runtime_error("Thread Error: Could not create video decode thread.");
+        if (!m_videoDecodeThread) {
+            throw std::runtime_error("Thread Error: Could not create video decode thread.");
+        }
         m_videoRenderthread = SDL_CreateThread(video_render_thread_entry, "VideoRenderThread", this);
-        if (!m_videoRenderthread) throw std::runtime_error("Thread Error: Could not create video render thread.");
+        if (!m_videoRenderthread) {
+            throw std::runtime_error("Thread Error: Could not create video render thread.");
+        }
     }
     // 启动音频解码和渲染线程
     if (audioStreamIndex >= 0) {
         m_audioDecodeThread = SDL_CreateThread(audio_decode_thread_entry, "AudioDecodeThread", this);
-        if (!m_audioDecodeThread) throw std::runtime_error("Thread Error: Could not create audio decode thread.");
+        if (!m_audioDecodeThread) {
+            throw std::runtime_error("Thread Error: Could not create audio decode thread.");
+        }
         m_audioRenderThread = SDL_CreateThread(audio_render_thread_entry, "AudioRenderThread", this);
-        if (!m_audioRenderThread) throw std::runtime_error("Thread Error: Failed to create audio render thread.");
+        if (!m_audioRenderThread) {
+            throw std::runtime_error("Thread Error: Failed to create audio render thread.");
+        }
+    }
+    // 启动总控制子线程
+    m_controlThread = SDL_CreateThread(control_thread_entry, "ControlThread", this);
+    if (!m_controlThread) {
+        throw std::runtime_error("Thread Error: Failed to create control thread.");
     }
 
-    cout << "MediaPlayer: Demux, video decode, and audio decode/render threads started." << endl;
+    cout << "MediaPlayer: Worker threads started." << endl;
 }
 
 MediaPlayer::~MediaPlayer() {
@@ -353,16 +380,37 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
         }
         // 空格键暂停
         if (event.key.keysym.sym == SDLK_SPACE) {
-            if (m_pause) {                  // 从暂停到播放
-                m_clockManager->resume();   // 内部调用 SDL_PauseAudioDevice(..., 0)
-                m_pause = false;            // 保持内部m_pause标志同步
-                cout << "MediaPlayer: Resumed." << endl;
-                m_pause_cond.notify_all();  // 通知所有等待在 m_pause_cond 上的线程，可以继续了
+            // 使用锁来确保状态转换的原子性
+            std::unique_lock<std::mutex> lock(m_state_mutex);
+
+            // 获取当前状态
+            PlayerState current_state = m_playerState.load();
+
+            if (current_state == PlayerState::PAUSED) {
+                // 从暂停恢复到播放
+                cout << "MediaPlayer: Resuming from PAUSED state." << endl;
+
+                m_clockManager->resume();
+                m_playerState.store(PlayerState::PLAYING);
+
+                lock.unlock(); // 在通知前解锁，避免等待的线程立即重新锁住互斥量
+                m_state_cond.notify_all(); // 唤醒所有等待的线程
             }
-            else {                          // 从播放到暂停
-                m_clockManager->pause();    // 内部调用 SDL_PauseAudioDevice(..., 1)
-                m_pause = true;             // 保持内部m_pause标志同步
-                cout << "MediaPlayer: Paused." << endl;
+            else if (current_state == PlayerState::PLAYING) {
+                // 从播放切换到暂停
+                cout << "MediaPlayer: Switching to PAUSED state." << endl;
+                
+                m_clockManager->pause();
+                m_playerState.store(PlayerState::PAUSED);
+                
+                // 切换到PAUSED时，不需要notify_all()。
+                // 其他线程在下一次循环检查wait条件时会自动阻塞。
+            }
+            else {
+                // 在 BUFFERING 或其他状态下按暂停键，也可以统一处理为暂停
+                // 目前实现为仅在 PLAYING 和 PAUSED 间切换
+                cout << "MediaPlayer: Pause/Resume ignored. Current state is "
+                    << static_cast<int>(current_state) << endl;
             }
         }
         break;
@@ -467,8 +515,8 @@ void MediaPlayer::cleanup() {
 
     // 1、发送全局退出信号 (所有线程循环的通用退出条件)
     m_quit.store(true);
-    // 唤醒所有可能在暂停中等待的线程，让它们能检查到 m_quit
-    m_pause_cond.notify_all();
+    // 唤醒所有可能在等待状态变化的线程，让它们能检查到 m_quit
+    m_state_cond.notify_all();
 
     // --- 第 1 阶段：停止生产者 (Demuxer) ---
     cout << "MediaPlayer: Shutting down producer threads..." << endl;
@@ -532,8 +580,14 @@ void MediaPlayer::cleanup() {
         SDL_WaitThread(m_audioRenderThread, nullptr);
         cout << "MediaPlayer: Audio render thread finished." << endl;
     }
+    // 退出总控制子线程
+    if (m_controlThread) {
+        cout << "MediaPlayer: Waiting for control thread to finish..." << endl;
+        SDL_WaitThread(m_controlThread, nullptr);
+        cout << "MediaPlayer: Control thread finished." << endl;
+    }
     cout << "MediaPlayer: All threads have been joined." << endl;
-
+    
     // --- 第 4 阶段：清理资源 ---
     cout << "MediaPlayer: Cleaning up resources..." << endl;
 
@@ -575,7 +629,7 @@ void MediaPlayer::cleanup() {
     cout << "MediaPlayer: Full cleanup finished." << endl;
 }
 
-// 解封装线程入口和主函数
+// 解复用线程入口和主函数
 int MediaPlayer::demux_thread_entry(void* opaque) {
     // 获取 MediaPlayer 实例指针
     return static_cast<MediaPlayer*>(opaque)->demux_thread_func();
@@ -583,7 +637,7 @@ int MediaPlayer::demux_thread_entry(void* opaque) {
 
 int MediaPlayer::demux_thread_func() {
     cout << "MediaPlayer: Demux thread started." << endl;
-    AVPacket* demux_packet = av_packet_alloc(); // 本地包，用于从解封装器读取
+    AVPacket* demux_packet = av_packet_alloc(); // 本地包，用于从解复用器读取
     if (!demux_packet) {
         cerr << "MediaPlayer DemuxThread Error: Could not allocate demux_packet." << endl;
         if (m_videoPacketQueue) { m_videoPacketQueue->signal_eof(); } // 将 错误 作为EOF 进行传递
@@ -594,13 +648,14 @@ int MediaPlayer::demux_thread_func() {
 
     int read_ret = 0;
     while (!m_quit) {
-        // 暂停处理逻辑
-        // 使用作用域来确保 等待 wait 结束后、执行耗时任务前释放锁 m_pause_mutex
+        // 暂停处理逻辑：只在用户手动暂停时才等待
         {
-            std::unique_lock<std::mutex> lock(m_pause_mutex);
-            // wait会检查条件：如果 m_pause 为 true 且 m_quit 为 false，线程会在此阻塞
-            // 直到 m_pause_cond.notify_all() 被调用，它才会醒来重新检查条件
-            m_pause_cond.wait(lock, [this] { return !m_pause || m_quit; });
+            std::unique_lock<std::mutex> lock(m_state_mutex);
+            // 如果 播放器处于暂停 且 m_quit 为 false，线程在此阻塞
+            // 直到 条件变量的 notify_all() 被调用，它才会醒来重新检查条件
+            m_state_cond.wait(lock, [this] {
+                return m_playerState != PlayerState::PAUSED || m_quit;
+                });
         }
         // 如果是因退出而被唤醒，则直接退出循环
         if (m_quit) break;
@@ -610,6 +665,7 @@ int MediaPlayer::demux_thread_func() {
         if (read_ret < 0) {
             if (read_ret == AVERROR_EOF) {
                 cout << "MediaPlayer DemuxThread: Demuxer reached EOF." << endl;
+                m_demuxer_eof = true;
                 if (m_videoPacketQueue) { m_videoPacketQueue->signal_eof(); }
                 if (m_audioPacketQueue) { m_audioPacketQueue->signal_eof(); }
             }
@@ -621,7 +677,7 @@ int MediaPlayer::demux_thread_func() {
                 if (m_audioPacketQueue) { m_audioPacketQueue->signal_eof(); }
                 m_quit = true; // 严重错误
             }
-            break; // 退出解封装循环
+            break; // 退出解复用循环
         }
 
         if (demux_packet->stream_index == videoStreamIndex) {
@@ -644,7 +700,7 @@ int MediaPlayer::demux_thread_func() {
             // 来自其他流的数据包，暂时忽略
         // }
 
-        // PacketQueue::push 会调用 av_packet_ref，因此这里解封装线程读取的原始包需要 unref
+        // PacketQueue::push 会调用 av_packet_ref，因此这里解复用线程读取的原始包需要 unref
         av_packet_unref(demux_packet);
     }
 
@@ -668,6 +724,7 @@ int MediaPlayer::video_decode_thread_entry(void* opaque) {
     return static_cast<MediaPlayer*>(opaque)->video_decode_func();
 }
 
+// 解码线程在 BUFFERING 和 PAUSED 状态下都应暂停
 int MediaPlayer::video_decode_func() {
     cout << "MediaPlayer: Video decode thread started." << endl;
     if (!m_videoDecoder || !m_videoPacketQueue || !m_videoFrameQueue) {
@@ -678,66 +735,13 @@ int MediaPlayer::video_decode_func() {
 
     AVFrame* decoded_frame = nullptr;
 
-    // --- 起播缓冲逻辑 ---
-    // 目标起播缓冲时长：2.0 秒
-    const double STARTUP_BUFFER_DURATION_SEC = 2.0;
-    // 获取视频流的时间基
-    AVRational time_base = m_videoDecoder->getTimeBase();
-    int64_t startup_threshold_ts = 0;
-
-    if (time_base.den > 0) {
-        startup_threshold_ts = static_cast<int64_t>(STARTUP_BUFFER_DURATION_SEC / av_q2d(time_base));
-        cout << "MediaPlayer VideoDecodeThread: Waiting for buffer to fill " << STARTUP_BUFFER_DURATION_SEC
-            << "s (" << startup_threshold_ts << " ts)..." << endl;
-    }
-
-    // 缓冲等待循环
-    // 条件：未退出 && 未缓冲够 && 队列未满 && 未EOF
-    // 增加一个简单的超时计数防止死锁
-    int wait_count = 0;
-    const int MAX_WAIT_COUNT = 200; // 200 * 50ms = 10秒超时
-
-    while (!m_quit && startup_threshold_ts > 0) {
-        int64_t current_duration = m_videoPacketQueue->getTotalDuration();
-
-        // 1. 检查是否达到起播阈值
-        if (current_duration >= startup_threshold_ts) {
-            cout << "MediaPlayer VideoDecodeThread: Startup buffer threshold reached. Starting playback." << endl;
-            break;
-        }
-
-        // 2. 检查队列是否已经满了 (可能最大缓冲设置得比起播阈值小，或者包很多但时长短)
-        // 这种情况下也应该开始，否则永远达不到时长阈值
-        // PacketQueue 没有直接暴露 isFull，但如果包数量很大也可以开始
-        if (m_videoPacketQueue->size() > 100) { // 简单阈值，或根据实际情况调整
-            cout << "MediaPlayer VideoDecodeThread: Packet count high. Starting playback." << endl;
-            break;
-        }
-
-        // 3. 检查是否流已经结束 (例如短视频，总时长都不够起播阈值)
-        if (m_videoPacketQueue->is_eof()) {
-            cout << "MediaPlayer VideoDecodeThread: Stream EOF reached during buffering. Starting playback." << endl;
-            break;
-        }
-
-        // 4. 超时检查
-        if (++wait_count > MAX_WAIT_COUNT) {
-            cout << "MediaPlayer VideoDecodeThread: Buffering timed out. Starting playback forcefully." << endl;
-            break;
-        }
-
-        // 5. 响应暂停/退出
-        if (m_quit) break;
-
-        // 短暂休眠，避免忙等待占满CPU
-        SDL_Delay(50);
-    }
-
     while (!m_quit) {
-        // 暂停处理逻辑
+        // 状态等待逻辑
         {
-            std::unique_lock<std::mutex> lock(m_pause_mutex);
-            m_pause_cond.wait(lock, [this] { return !m_pause || m_quit; });
+            std::unique_lock<std::mutex> lock(m_state_mutex);
+            m_state_cond.wait(lock, [this] { 
+                return m_playerState == PlayerState::PLAYING || m_quit;
+                });
         }
         if (m_quit) break;
 
@@ -823,75 +827,6 @@ int MediaPlayer::video_decode_func() {
     return 0;
 }
 
-// 视频渲染线程入口和主函数
-int MediaPlayer::video_render_thread_entry(void* opaque) {
-    return static_cast<MediaPlayer*>(opaque)->video_render_func();
-}
-
-int MediaPlayer::video_render_func() {
-    cout << "MediaPlayer: VideoRenderThread started." << endl;
-    if (!m_renderingVideoFrame) {
-        cerr << "MediaPlayer VideoRenderThread Error: m_renderingVideoFrame is null." << endl;
-        return -1;
-    }
-
-    while (!m_quit) {
-        // 暂停处理逻辑
-        {
-            std::unique_lock<std::mutex> lock(m_pause_mutex);
-            m_pause_cond.wait(lock, [this] { return !m_pause || m_quit; });
-        }
-        if (m_quit) break;
-
-        // 尝试从队列获取新帧
-        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, -1);
-
-        if (got_new_frame) {
-            // 计算需要延迟多久
-            double delay = m_videoRenderer->calculateSyncDelay(m_renderingVideoFrame);
-            // 收到丢帧信号：释放当前帧，并立即开始下一次循环以获取新帧
-            // 为了避免浮点数比较的潜在问题，使用 < 0.0 来判断帧是否迟到
-            if (delay < 0.0) {
-                cout << "MediaPlayer VideoRenderThread: Dropping a frame to catch up." << endl;
-                av_frame_unref(m_renderingVideoFrame);
-                continue; // 直接跳到 while 循环的下一次迭代
-            }
-
-            if (delay > 0.0) {
-                SDL_Delay(static_cast<Uint32>(delay * 1000.0));
-            }
-
-            // 如果已经因为 m_quit = true 被唤醒，检查一下再发事件
-            if (m_quit) break;
-
-            // 准备渲染数据 (sws_scale等)，这是一个CPU密集型操作，适合放在该工作线程
-            // 只把数据准备好，但不呈现
-            if (!m_videoRenderer->prepareFrameForDisplay(m_renderingVideoFrame)) {
-                cerr << "MediaPlayer VideoRenderThread: prepareFrameForDisplay failed." << endl;
-                // 不一定是致命错误，可以继续
-            }
-
-            // 发送刷新事件通知主线程
-            SDL_Event event;
-            event.type = FF_REFRESH_EVENT;
-            SDL_PushEvent(&event);
-
-            av_frame_unref(m_renderingVideoFrame);
-        }
-        else {
-            cout << "MediaPlayer VideoRenderThread: pop() returned false, exiting loop." << endl;
-            break;
-        }
-    }
-
-    // 线程退出前，发送一个最后的退出信号，确保主循环能被唤醒并退出
-    SDL_Event event;
-    event.type = FF_QUIT_EVENT;
-    SDL_PushEvent(&event);
-
-    return 0;
-}
-
 // 音频解码线程入口和主函数
 int MediaPlayer::audio_decode_thread_entry(void* opaque) {
     return static_cast<MediaPlayer*>(opaque)->audio_decode_func();
@@ -907,54 +842,13 @@ int MediaPlayer::audio_decode_func() {
 
     AVFrame* decoded_frame = nullptr;
 
-    // --- 起播缓冲逻辑 ---
-    // 目标起播缓冲时长：例如 2.0 秒
-    const double STARTUP_BUFFER_DURATION_SEC = 2.0;
-    // 获取音频流的时间基 (注意：AudioDecoder 的 getTimeBase 返回的是初始化时传入的)
-    AVRational time_base = m_audioDecoder->getTimeBase();
-    int64_t startup_threshold_ts = 0;
-
-    if (time_base.den > 0) {
-        startup_threshold_ts = static_cast<int64_t>(STARTUP_BUFFER_DURATION_SEC / av_q2d(time_base));
-        cout << "MediaPlayer AudioDecodeThread: Waiting for buffer to fill " << STARTUP_BUFFER_DURATION_SEC
-            << "s (" << startup_threshold_ts << " ts)..." << endl;
-    }
-
-    int wait_count = 0;
-    const int MAX_WAIT_COUNT = 200; // 10秒超时
-
-    while (!m_quit && startup_threshold_ts > 0) {
-        int64_t current_duration = m_audioPacketQueue->getTotalDuration();
-
-        if (current_duration >= startup_threshold_ts) {
-            cout << "MediaPlayer AudioDecodeThread: Startup buffer threshold reached. Starting playback." << endl;
-            break;
-        }
-
-        if (m_audioPacketQueue->size() > 150) {
-            cout << "MediaPlayer AudioDecodeThread: Packet count high. Starting playback." << endl;
-            break;
-        }
-
-        if (m_audioPacketQueue->is_eof()) {
-            cout << "MediaPlayer AudioDecodeThread: Stream EOF reached during buffering. Starting playback." << endl;
-            break;
-        }
-
-        if (++wait_count > MAX_WAIT_COUNT) {
-            cout << "MediaPlayer AudioDecodeThread: Buffering timed out. Starting playback forcefully." << endl;
-            break;
-        }
-
-        if (m_quit) break;
-        SDL_Delay(50);
-    }
-
     while (!m_quit) {
-        // 暂停处理逻辑
+        // 状态等待逻辑
         {
-            std::unique_lock<std::mutex> lock(m_pause_mutex);
-            m_pause_cond.wait(lock, [this] { return !m_pause || m_quit; });
+            std::unique_lock<std::mutex> lock(m_state_mutex);
+            m_state_cond.wait(lock, [this] {
+                return m_playerState == PlayerState::PLAYING || m_quit;
+                });
         }
         if (m_quit) break;
 
@@ -1046,6 +940,77 @@ int MediaPlayer::audio_decode_func() {
     return 0;
 }
 
+// 视频渲染线程入口和主函数
+int MediaPlayer::video_render_thread_entry(void* opaque) {
+    return static_cast<MediaPlayer*>(opaque)->video_render_func();
+}
+
+int MediaPlayer::video_render_func() {
+    cout << "MediaPlayer: VideoRenderThread started." << endl;
+    if (!m_renderingVideoFrame) {
+        cerr << "MediaPlayer VideoRenderThread Error: m_renderingVideoFrame is null." << endl;
+        return -1;
+    }
+
+    while (!m_quit) {
+        // 状态等待逻辑
+        {
+            std::unique_lock<std::mutex> lock(m_state_mutex);
+            m_state_cond.wait(lock, [this] { 
+                return m_playerState == PlayerState::PLAYING || m_quit;
+                });
+        }
+        if (m_quit) break;
+
+        // 尝试从队列获取新帧
+        bool got_new_frame = m_videoFrameQueue->pop(m_renderingVideoFrame, -1);
+
+        if (got_new_frame) {
+            // 计算需要延迟多久
+            double delay = m_videoRenderer->calculateSyncDelay(m_renderingVideoFrame);
+            // 收到丢帧信号：释放当前帧，并立即开始下一次循环以获取新帧
+            // 为了避免浮点数比较的潜在问题，使用 < 0.0 来判断帧是否迟到
+            if (delay < 0.0) {
+                cout << "MediaPlayer VideoRenderThread: Dropping a frame to catch up." << endl;
+                av_frame_unref(m_renderingVideoFrame);
+                continue; // 直接跳到 while 循环的下一次迭代
+            }
+
+            if (delay > 0.0) {
+                SDL_Delay(static_cast<Uint32>(delay * 1000.0));
+            }
+
+            // 如果已经因为 m_quit = true 被唤醒，检查一下再发事件
+            if (m_quit) break;
+
+            // 准备渲染数据 (sws_scale等)，这是一个CPU密集型操作，适合放在该工作线程
+            // 只把数据准备好，但不呈现
+            if (!m_videoRenderer->prepareFrameForDisplay(m_renderingVideoFrame)) {
+                cerr << "MediaPlayer VideoRenderThread: prepareFrameForDisplay failed." << endl;
+                // 不一定是致命错误，可以继续
+            }
+
+            // 发送刷新事件通知主线程
+            SDL_Event event;
+            event.type = FF_REFRESH_EVENT;
+            SDL_PushEvent(&event);
+
+            av_frame_unref(m_renderingVideoFrame);
+        }
+        else {
+            cout << "MediaPlayer VideoRenderThread: pop() returned false, exiting loop." << endl;
+            break;
+        }
+    }
+
+    // 线程退出前，发送一个最后的退出信号，确保主循环能被唤醒并退出
+    SDL_Event event;
+    event.type = FF_QUIT_EVENT;
+    SDL_PushEvent(&event);
+
+    return 0;
+}
+
 // 音频渲染线程入口和主函数
 int MediaPlayer::audio_render_thread_entry(void* opaque) {
     return static_cast<MediaPlayer*>(opaque)->audio_render_func();
@@ -1059,10 +1024,12 @@ int MediaPlayer::audio_render_func() {
     }
 
     while (!m_quit) {
-        // 暂停处理逻辑
+        // 状态等待逻辑
         {
-            std::unique_lock<std::mutex> lock(m_pause_mutex);
-            m_pause_cond.wait(lock, [this] { return !m_pause || m_quit; });
+            std::unique_lock<std::mutex> lock(m_state_mutex);
+            m_state_cond.wait(lock, [this] { 
+                return m_playerState == PlayerState::PLAYING || m_quit;
+                });
         }
         if (m_quit) break;
 
@@ -1085,5 +1052,88 @@ int MediaPlayer::audio_render_func() {
         av_frame_unref(m_renderingAudioFrame);
     }
 
+    return 0;
+}
+
+// 总控制线程入口和主函数
+int MediaPlayer::control_thread_entry(void* opaque) {
+    return static_cast<MediaPlayer*>(opaque)->control_thread_func();
+}
+
+int MediaPlayer::control_thread_func() {
+    cout << "MediaPlayer: Control thread started." << endl;
+
+    AVRational time_base = { 0, 1 };
+
+    // 优先使用视频流的时间基，如果不存在则使用音频流
+    if (videoStreamIndex != -1) {
+        time_base = m_demuxer->getTimeBase(videoStreamIndex);
+    }
+    else if (audioStreamIndex != -1) {
+        time_base = m_demuxer->getTimeBase(audioStreamIndex);
+    }
+
+    // 校验获取到的time_base是否有效
+    if (time_base.den == 0) {
+        cerr << "MediaPlayer ControlThread Error: Could not determine a valid time_base for buffering." << endl;
+        return -1;
+    }
+
+    while (!m_quit) {
+        // 每 150ms 检查一次状态
+        SDL_Delay(150);
+
+        // 获取当前主PacketQueue的缓冲时长（秒）
+        // 优先基于视频队列计算，若无视频则基于音频队列
+        double current_buffer_sec = 0.0;
+        if (videoStreamIndex != -1 && m_videoPacketQueue) {
+            int64_t duration_ts = m_videoPacketQueue->getTotalDuration();
+            current_buffer_sec = duration_ts * av_q2d(time_base);
+        }
+        else if (audioStreamIndex != -1 && m_audioPacketQueue) {
+            int64_t duration_ts = m_audioPacketQueue->getTotalDuration();
+            AVRational audio_time_base = m_demuxer->getTimeBase(audioStreamIndex);
+            if (audio_time_base.den > 0) {
+                current_buffer_sec = duration_ts * av_q2d(audio_time_base);
+            }
+        }
+
+        PlayerState current_state = m_playerState.load();
+
+        // --- 决策逻辑 ---
+        switch (current_state) {
+        case PlayerState::BUFFERING:
+        {
+            // 检查是否 解复用已结束 且 包队列已空（适用于文件太短无法达到缓冲阈值的情况）
+            bool demux_finished_and_queues_empty = m_demuxer_eof.load() &&
+                (!m_videoPacketQueue || m_videoPacketQueue->size() == 0) &&
+                (!m_audioPacketQueue || m_audioPacketQueue->size() == 0);
+
+            // 如果缓冲时长达到“高水位线”，或者流已结束，则切换到播放状态
+            if (current_buffer_sec >= PLAYOUT_THRESHOLD_SEC || demux_finished_and_queues_empty)
+            {
+                cout << "MediaPlayer ControlThread: Buffering complete. Switching to PLAYING." << endl;
+                m_playerState.store(PlayerState::PLAYING);
+                m_state_cond.notify_all(); // 唤醒解码和渲染线程开始工作
+            }
+            break;
+        }
+        case PlayerState::PLAYING:
+            // 如果缓冲时长低于“低水位线”，并且数据流还未结束，则切换回缓冲状态
+            if (current_buffer_sec < REBUFFER_THRESHOLD_SEC && !m_demuxer_eof.load())
+            {
+                cout << "MediaPlayer ControlThread: Buffer running low. Switching to BUFFERING." << endl;
+                m_playerState.store(PlayerState::BUFFERING);
+                // 不需要 notify，其他线程在下一次循环中会检测到新状态并自动等待
+            }
+            break;
+
+        case PlayerState::PAUSED:
+        case PlayerState::IDLE:
+        case PlayerState::STOPPED:
+            // 在这些状态下，控制线程不进行任何干预
+            break;
+        }
+    }
     return 0;
 }

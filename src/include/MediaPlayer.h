@@ -23,7 +23,7 @@
 #include <string>
 #include <iostream>
 #include <atomic>
-#include <memory>   // 智能指针，std::unique_ptr
+#include <memory>
 #include <mutex>
 #include <condition_variable>
 
@@ -36,7 +36,7 @@ struct SwsContext;
 // 接口头文件
 #include "PacketQueue.h"    // 数据包队列
 #include "FrameQueue.h"     // 数据帧队列
-#include "IDemuxer.h"       // 解封装器
+#include "IDemuxer.h"       // 解复用器
 #include "IVideoDecoder.h"  // 视频解码器
 #include "IAudioDecoder.h"  // 音频解码器
 #include "IVideoRenderer.h" // 视频渲染器
@@ -60,43 +60,62 @@ extern "C" {
 #include "SDL2/SDL_thread.h"
 
 class MediaPlayer {
+public: 
+    // 播放器状态
+    enum class PlayerState {
+        IDLE,       // 空闲
+        BUFFERING,  // 缓冲
+        PLAYING,    // 播放
+        PAUSED,     // 暂停
+        STOPPED     // 停止/错误
+    };
+
 private:
     // 内部状态标志
-    std::atomic<bool> m_quit;   //退出标志
-    std::atomic<bool> m_pause;  //暂停标志
-    std::mutex m_pause_mutex;
-    std::condition_variable m_pause_cond;
-    // 内部组件
-    std::unique_ptr<PacketQueue> m_videoPacketQueue;    // 视频包队列
-    std::unique_ptr<FrameQueue> m_videoFrameQueue;      // 视频帧队列
-    std::unique_ptr<PacketQueue> m_audioPacketQueue;    // 音频包队列
-    std::unique_ptr<FrameQueue> m_audioFrameQueue;      // 音频帧队列
-
-    // 关系：MediaPlayer HAS-A IWorker
-    std::unique_ptr<IDemuxer> m_demuxer;                // 解封装器
-    std::unique_ptr<IVideoDecoder> m_videoDecoder;      // 视频解码器
-    std::unique_ptr<IAudioDecoder> m_audioDecoder;      // 音频解码器
-    std::unique_ptr<IVideoRenderer> m_videoRenderer;    // 视频渲染器
-    std::unique_ptr<IAudioRenderer> m_audioRenderer;    // 音频渲染器
-    std::unique_ptr<IClockManager> m_clockManager;      // 时钟管理器
+    std::atomic<bool> m_quit;   // 退出标志
+    std::atomic<PlayerState> m_playerState;  // 播放器核心状态
+    std::atomic<bool> m_demuxer_eof; // 解复用器EOF标志
+    std::mutex m_state_mutex;   // 用于保护状态转换和相关条件的互斥锁
+    std::condition_variable m_state_cond;    // 用于唤醒因状态变化而等待的线程
 
     // 内部状态变量
-    int videoStreamIndex = -1;                  // 解封装器找到的视频流索引
-    int audioStreamIndex = -1;                  // 音频流索引
+    int videoStreamIndex;  // 解复用器找到的视频流索引
+    int audioStreamIndex;  // 音频流索引
     // 其他变量
-    int frame_cnt = 0;                          // 帧计数器
+    int frame_cnt;         // 帧计数器
 
-    AVPacket* m_decodingVideoPacket = nullptr;  // 用于 视频解码 的 Packet 
-    AVFrame* m_renderingVideoFrame = nullptr;   // 用于 视频渲染 的 Frame
-    AVPacket* m_decodingAudioPacket = nullptr;  // 用于 音频解码 的 Packet
-    AVFrame* m_renderingAudioFrame = nullptr;   // 用于 音频渲染 的 Frame
+    // 内部组件
+    std::unique_ptr<PacketQueue> m_videoPacketQueue;
+    std::unique_ptr<PacketQueue> m_audioPacketQueue;
+    std::unique_ptr<FrameQueue> m_videoFrameQueue;
+    std::unique_ptr<FrameQueue> m_audioFrameQueue;
+
+    AVPacket* m_decodingVideoPacket;
+    AVPacket* m_decodingAudioPacket;
+    AVFrame* m_renderingVideoFrame;
+    AVFrame* m_renderingAudioFrame;
+
+    // 关系：MediaPlayer HAS-A IWorker
+    std::unique_ptr<IDemuxer> m_demuxer;                // 解复用
+    std::unique_ptr<IVideoDecoder> m_videoDecoder;      // 视频解码
+    std::unique_ptr<IAudioDecoder> m_audioDecoder;      // 音频解码
+    std::unique_ptr<IVideoRenderer> m_videoRenderer;    // 视频渲染
+    std::unique_ptr<IAudioRenderer> m_audioRenderer;    // 音频渲染
+    std::unique_ptr<IClockManager> m_clockManager;      // 时钟管理
 
     // 内部线程句柄
-    SDL_Thread* m_demuxThread = nullptr;        // 解封装线程
-    SDL_Thread* m_videoDecodeThread = nullptr;  // 视频解码线程
-    SDL_Thread* m_videoRenderthread = nullptr;  // 视频渲染线程
-    SDL_Thread* m_audioDecodeThread = nullptr;  // 音频解码线程
-    SDL_Thread* m_audioRenderThread = nullptr;  // 音频渲染线程
+    SDL_Thread* m_demuxThread;        // 解复用
+    SDL_Thread* m_videoDecodeThread;  // 视频解码
+    SDL_Thread* m_audioDecodeThread;  // 音频解码
+    SDL_Thread* m_videoRenderthread;  // 视频渲染
+    SDL_Thread* m_audioRenderThread;  // 音频渲染
+    SDL_Thread* m_controlThread;      // 总控制
+
+    // --- 缓冲策略参数 (单位: 秒) ---
+    // 当缓冲低于此值时，进入 BUFFERING 状态
+    static constexpr double REBUFFER_THRESHOLD_SEC = 0.5;
+    // 在 BUFFERING 状态下，缓冲超过此值时，恢复 PLAYING 状态
+    static constexpr double PLAYOUT_THRESHOLD_SEC = 2.0;
 
 public:
     MediaPlayer(const string& filepath);
@@ -109,29 +128,32 @@ public:
     int get_frame_cnt() const { return frame_cnt; };
 
 private:
-    // 线程入口函数，分为 静态入口 和 实际逻辑
+    // 线程入口函数
+    // （为了兼容SDL API，包括静态入口和实际逻辑）
     static int demux_thread_entry(void* opaque);
     int demux_thread_func();
     static int video_decode_thread_entry(void* opaque);
     int video_decode_func();
-    static int video_render_thread_entry(void* opaque);
-    int video_render_func();
     static int audio_decode_thread_entry(void* opaque);
     int audio_decode_func();
+    static int video_render_thread_entry(void* opaque);
+    int video_render_func();
     static int audio_render_thread_entry(void* opaque);
     int audio_render_func();
+    static int control_thread_entry(void* opaque);
+    int control_thread_func();
 
 private:
     // 事件处理
     int handle_event(const SDL_Event& event);
-    // 构造和初始化的辅助函数
+    // 辅助函数（构造和初始化）
     void init_components(const string& filepath);
     void init_ffmpeg_resources(const string& filepath);
     int init_demuxer_and_decoders(const string& filepath);
     void init_sdl_video_renderer();
     void init_sdl_audio_renderer();
     void start_threads();
-    // 析构和资源清理的辅助函数
+    // 辅助函数（析构和资源清理）
     void cleanup_ffmpeg_resources();
     void cleanup();
 };
