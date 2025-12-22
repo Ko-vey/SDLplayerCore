@@ -57,6 +57,11 @@ public:
 	*/
 	virtual void close() = 0;
 
+	/*
+	* @brief 刷新模块内数据。
+	*/
+	virtual void flush() = 0;
+
 	/**
 	* @brief 获取解码后的音频采样率（如44.1kHz、48kHz）。
 	* @return 采样率。

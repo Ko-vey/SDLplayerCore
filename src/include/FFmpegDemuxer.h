@@ -39,7 +39,8 @@ private:
 	string m_url;
 	int m_videoStreamIndex = -1;
 	int m_audioStreamIndex = -1;
-	std::atomic<bool> m_abort_request{ false }; // 中断请求标志
+	std::atomic<bool> m_abort_request = false; // 中断请求标志
+	bool m_isLiveStream = false;
 
 public:
 	FFmpegDemuxer() = default;
@@ -48,12 +49,15 @@ public:
 	// IDemuxer 接口实现
 	bool open(const char* url) override;
 	void close() override;
+	int seek(double timestamp_sec) override;
 	int readPacket(AVPacket* packet) override;
 	AVFormatContext* getFormatContext() const override;
 	int findStream(AVMediaType type) const override;
 	AVCodecParameters* getCodecParameters(int streamIndex) const override;
 	AVRational getTimeBase(int streamIndex) const override;
 	double getDuration() const override;
+
+	bool isLiveStream() const override { return m_isLiveStream; }
 
 	// 用于从外部（如 MediaPlayer）请求中断
 	void requestAbort(bool abort);

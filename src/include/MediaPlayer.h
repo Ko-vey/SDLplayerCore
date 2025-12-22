@@ -146,6 +146,7 @@ private:
 private:
     // 事件处理
     int handle_event(const SDL_Event& event);
+    void resync_after_pause();
     // 辅助函数（构造和初始化）
     void init_components(const string& filepath);
     void init_ffmpeg_resources(const string& filepath);

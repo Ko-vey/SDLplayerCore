@@ -57,6 +57,11 @@ public:
 	*/
 	virtual void close() = 0;
 
+	/*
+	* @brief 刷新模块内数据。
+	*/
+	virtual void flush() = 0;
+
 	/**
 	* @brief 获取解码后的视频帧的宽度
 	* @return 宽度（单位：像素）。

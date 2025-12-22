@@ -380,26 +380,30 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
         }
         // 空格键暂停
         if (event.key.keysym.sym == SDLK_SPACE) {
-            // 使用锁来确保状态转换的原子性
             std::unique_lock<std::mutex> lock(m_state_mutex);
-
-            // 获取当前状态
             PlayerState current_state = m_playerState.load();
 
             if (current_state == PlayerState::PAUSED) {
                 // 从暂停恢复到播放
                 cout << "MediaPlayer: Resuming from PAUSED state." << endl;
 
-                m_clockManager->resume();
-                m_playerState.store(PlayerState::PLAYING);
+                // 1. 执行重同步操作
+                resync_after_pause();
 
-                lock.unlock(); // 在通知前解锁，避免等待的线程立即重新锁住互斥量
-                m_state_cond.notify_all(); // 唤醒所有等待的线程
+                // 2. 切换到缓冲状态，让 control_thread 接管后续流程
+                //    此时时钟在 resync_after_pause() 中已被重置并暂停
+                m_playerState.store(PlayerState::BUFFERING);
+                cout << "MediaPlayer: Switched to BUFFERING state to refill buffers after pause." << endl;
+
+                // 3. 唤醒 解复用线程 开始拉流，解码/渲染线程 会因状态不为 PLAYING 而继续等待
+                lock.unlock();
+                m_state_cond.notify_all();
             }
-            else if (current_state == PlayerState::PLAYING) {
-                // 从播放切换到暂停
-                cout << "MediaPlayer: Switching to PAUSED state." << endl;
-                
+            else if (current_state == PlayerState::PLAYING || current_state == PlayerState::BUFFERING) {
+                // 从播放或缓冲状态切换到暂停
+                cout << "MediaPlayer: Switching to PAUSED state from "
+                    << (current_state == PlayerState::PLAYING ? "PLAYING" : "BUFFERING") << "." << endl;
+
                 m_clockManager->pause();
                 m_playerState.store(PlayerState::PAUSED);
                 
@@ -407,9 +411,8 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
                 // 其他线程在下一次循环检查wait条件时会自动阻塞。
             }
             else {
-                // 在 BUFFERING 或其他状态下按暂停键，也可以统一处理为暂停
-                // 目前实现为仅在 PLAYING 和 PAUSED 间切换
-                cout << "MediaPlayer: Pause/Resume ignored. Current state is "
+                // 在 IDLE 或 STOPPED 状态下忽略
+                cout << "MediaPlayer: Pause ignored. Current state is "
                     << static_cast<int>(current_state) << endl;
             }
         }
@@ -460,7 +463,6 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
     return 1; // 统一返回1，循环由 m_quit 控制
 }
 
-// 基础主循环启动函数
 int MediaPlayer::runMainLoop() {
     cout << "MediaPlayer: Starting main loop..." << endl;
 
@@ -473,6 +475,50 @@ int MediaPlayer::runMainLoop() {
 
     cout << "MediaPlayer: Main loop finished." << endl;
     return 0;
+}
+
+void MediaPlayer::resync_after_pause() {
+    cout << "MediaPlayer: Resyncing after pause..." << endl;
+
+    // 清空 SDL 音频设备缓冲
+    if (m_audioRenderer) {
+        m_audioRenderer->flushBuffers();
+    }
+
+    // 清空队列
+    if (m_videoPacketQueue) m_videoPacketQueue->clear();
+    if (m_audioPacketQueue) m_audioPacketQueue->clear();
+    if (m_videoFrameQueue) m_videoFrameQueue->clear();
+    if (m_audioFrameQueue) m_audioFrameQueue->clear();
+
+    // 3. 区分流类型处理 Seek 和 时钟
+    bool isLive = m_demuxer && m_demuxer->isLiveStream();
+
+    if (isLive) {
+        // --- 直播流处理 ---
+        // 禁止 seek(0)，否则会导致连接断开或协议错误
+        cout << "MediaPlayer: Live stream detected, skipping seek(0)." << endl;
+
+        // 将时钟标记为未知，等待渲染线程收到第一帧后重新校准
+        if (m_clockManager) m_clockManager->setClockToUnknown();
+    }
+    else {
+        // --- 本地文件处理 ---
+        // Seek 到 0 (重播)
+        if (m_demuxer) {
+            m_demuxer->seek(0);
+        }
+        // 重置时钟为 0
+        if (m_clockManager) m_clockManager->reset();
+    }
+
+    // 刷新解码器上下文
+    if (m_videoDecoder) m_videoDecoder->flush();
+    if (m_audioDecoder) m_audioDecoder->flush();
+
+    m_demuxer_eof = false; // 重置解复用器EOF标志
+
+    cout << "MediaPlayer: Resync complete." << endl;
 }
 
 void MediaPlayer::cleanup_ffmpeg_resources() {
@@ -637,7 +683,7 @@ int MediaPlayer::demux_thread_entry(void* opaque) {
 
 int MediaPlayer::demux_thread_func() {
     cout << "MediaPlayer: Demux thread started." << endl;
-    AVPacket* demux_packet = av_packet_alloc(); // 本地包，用于从解复用器读取
+    AVPacket* demux_packet = av_packet_alloc();
     if (!demux_packet) {
         cerr << "MediaPlayer DemuxThread Error: Could not allocate demux_packet." << endl;
         if (m_videoPacketQueue) { m_videoPacketQueue->signal_eof(); } // 将 错误 作为EOF 进行传递
@@ -647,16 +693,45 @@ int MediaPlayer::demux_thread_func() {
     }
 
     int read_ret = 0;
+    bool isLive = m_demuxer && m_demuxer->isLiveStream();
+
     while (!m_quit) {
-        // 暂停处理逻辑：只在用户手动暂停时才等待
-        {
-            std::unique_lock<std::mutex> lock(m_state_mutex);
-            // 如果 播放器处于暂停 且 m_quit 为 false，线程在此阻塞
-            // 直到 条件变量的 notify_all() 被调用，它才会醒来重新检查条件
-            m_state_cond.wait(lock, [this] {
-                return m_playerState != PlayerState::PAUSED || m_quit;
-                });
+        // 获取当前状态
+        PlayerState currentState = m_playerState.load();
+        
+        if (currentState == PlayerState::PAUSED) {
+            if (isLive) {
+                // 【直播流-假暂停策略】
+                // 为了防止 TCP 断连 和服务器缓冲区溢出，
+                // 暂停时必须继续读取数据，但直接丢包。
+
+                read_ret = m_demuxer->readPacket(demux_packet);
+                if (read_ret >= 0) {
+                    // 读取成功，直接释放引用（丢包）
+                    av_packet_unref(demux_packet);
+                }
+                else {
+                    // 读取出错 (例如 EOF 或 网络真的断了)
+                    if (read_ret != AVERROR(EAGAIN)) {
+                        // 记录错误但根据情况决定是否退出
+                        // 这里简单打印警告，如果是严重错误会在后续循环中被捕获或自行决定退出
+                        cerr << "Warning: Live stream read error during pause." << endl;
+                    }
+                }
+
+                // 必须延时！否则这个空循环会占满一个 CPU 核心
+                SDL_Delay(10);
+                continue; // 跳过后续入队逻辑，直接进入下一次循环
+            }
+            else {
+                // 【本地文件-真暂停策略】
+                std::unique_lock<std::mutex> lock(m_state_mutex);
+                m_state_cond.wait(lock, [this] {
+                    return m_playerState != PlayerState::PAUSED || m_quit;
+                    });
+            }
         }
+
         // 如果是因退出而被唤醒，则直接退出循环
         if (m_quit) break;
 
@@ -1113,8 +1188,17 @@ int MediaPlayer::control_thread_func() {
             if (current_buffer_sec >= PLAYOUT_THRESHOLD_SEC || demux_finished_and_queues_empty)
             {
                 cout << "MediaPlayer ControlThread: Buffering complete. Switching to PLAYING." << endl;
+
+                // 1. 恢复时钟。此时是播放开始的精确时刻。
+                if (m_clockManager) {
+                    m_clockManager->resume();
+                }
+
+                // 2. 切换到播放状态
                 m_playerState.store(PlayerState::PLAYING);
-                m_state_cond.notify_all(); // 唤醒解码和渲染线程开始工作
+
+                // 3. 唤醒解码和渲染线程开始工作
+                m_state_cond.notify_all();
             }
             break;
         }

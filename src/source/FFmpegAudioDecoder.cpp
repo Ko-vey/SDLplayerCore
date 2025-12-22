@@ -127,6 +127,12 @@ int FFmpegAudioDecoder::decode(AVPacket* packet, AVFrame** frame) {
     return ret;
 }
 
+void FFmpegAudioDecoder::flush() {
+    if (m_codecContext) {
+        avcodec_flush_buffers(m_codecContext);
+    }
+}
+
 // --- Getter ·½·¨ ---
 
 int FFmpegAudioDecoder::getSampleRate() const {

@@ -199,6 +199,7 @@ void SDLAudioRenderer::pause() {
 void SDLAudioRenderer::flushBuffers() {
     if (m_audio_device_id != 0) {
         SDL_ClearQueuedAudio(m_audio_device_id);
+        std::cout << "SDLAudioRenderer: Audio device buffer flushed." << std::endl;
     }
 }
 

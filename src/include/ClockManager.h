@@ -22,6 +22,7 @@
 
 #include "IClockManager.h"
 #include <mutex>
+#include <cmath> // std::isnan
 
 #include "SDL2/SDL_timer.h" // SDL_GetTicks64
 #include "SDL2/SDL_audio.h" // SDL_AudioDeviceID
@@ -47,6 +48,9 @@ public:
     double getVideoClockTime() override;
 
     double getExternalClockTime() override;
+
+    void setClockToUnknown() override;
+    bool isClockUnknown() override;
 
     void pause() override;
     void resume() override;

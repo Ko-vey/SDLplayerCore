@@ -170,6 +170,26 @@ double ClockManager::getAudioClockTime_nolock() {
     return pts - buffered_duration_sec;
 }
 
+void ClockManager::setClockToUnknown() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    // 使用 NAN (Not A Number) 标记未知状态
+    m_video_clock_time = std::nan("");
+    m_audio_clock_time = std::nan("");
+    // 保持 paused 状态，直到 resume 被调用且第一帧到来
+    std::cout << "ClockManager set to UNKNOWN status." << std::endl;
+}
+
+bool ClockManager::isClockUnknown() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    // 检查当前的主时钟是否为 NAN
+    if (m_master_clock_type == MasterClockType::AUDIO) {
+        return std::isnan(m_audio_clock_time);
+    }
+    else {
+        return std::isnan(m_video_clock_time);
+    }
+}
+
 void ClockManager::pause() {
     if (!m_paused) {
         std::lock_guard<std::mutex> lock(m_mutex);

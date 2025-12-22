@@ -35,6 +35,7 @@ public:
 	bool init(AVCodecParameters* codecParams, AVRational timeBase) override;
 	int decode(AVPacket* packet, AVFrame** frame) override;
 	void close() override;
+	void flush() override;
 
 	int getWidth() const override;
 	int getHeight() const override;

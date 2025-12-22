@@ -47,6 +47,7 @@ public:
     bool init(AVCodecParameters* codecParams, AVRational timeBase, IClockManager* clockManager) override;
     int decode(AVPacket* packet, AVFrame** frame) override;
     void close() override;
+    void flush() override;
 
     int getSampleRate() const override;
     int getChannels() const override;

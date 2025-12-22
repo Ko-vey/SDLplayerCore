@@ -163,6 +163,13 @@ void PacketQueue::clear() {
 	// 重置所有统计数据
 	m_total_duration_ts = 0;
 	m_total_bytes = 0;
+
+	// 重置状态标志，使其可以重新接收数据
+	eof_signaled = false;
+	m_abort_request = false;
+
+	// 唤醒可能因队列为空而等待的消费者线程
+	cond_consumer.notify_all();
 }
 
 void PacketQueue::signal_eof() {

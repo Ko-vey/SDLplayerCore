@@ -110,4 +110,15 @@ public:
 	* @brief 重置时钟状态
 	*/
 	virtual void reset() = 0;
+
+	/**
+	 * @brief 将时钟设置为未同步状态 (NAN)。
+	 * 用于直播流暂停恢复后，等待第一帧数据来校准时钟。
+	 */
+	virtual void setClockToUnknown() = 0;
+
+	/**
+	 * @brief 检查主时钟是否处于未同步状态。
+	 */
+	virtual bool isClockUnknown() = 0;
 };

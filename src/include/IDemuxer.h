@@ -44,6 +44,13 @@ public:
 	virtual void close() = 0;
 
 	/**
+	 * @brief 跳转到特定时间戳.
+	 * @param timestamp_sec 时间戳所在的秒数.
+	 * @return int >0成功,<0失败。
+	 */
+	virtual int seek(double timestamp_sec) = 0;
+
+	/**
 	 * @brief 读取下一个数据包
 	 * @param packet 调用者提供的 AVPacket 结构体指针，用于接收数据
 	 * @return 成功返回0，文件结束返回AVERROR_EOF，其他错误则返回<0的数字
@@ -82,7 +89,10 @@ public:
 	 * @return AVRational 结构体，表示时间基。若索引无效则返回 {0, 1}。
 	 */
 	virtual AVRational getTimeBase(int streamIndex) const = 0;
-	
-	//（其他功能，如获取元数据等）
-	//virtual AVDictionary* getMetadata() const = 0;
+
+	/**
+	 * @brief 判断当前流是否为实时直播流 (RTSP/RTMP等)
+	 * @return true 是直播流, false 是本地文件或点播
+	 */
+	virtual bool isLiveStream() const = 0;
 };

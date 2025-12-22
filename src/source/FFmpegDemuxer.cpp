@@ -112,6 +112,28 @@ bool FFmpegDemuxer::open(const char* url) {
 		cout << " Audio stream index: " << m_audioStreamIndex << endl;
 	}
 
+	// --- 检测是否为直播流 ---
+	if (pFormatCtx) {
+		std::string formatName = pFormatCtx->iformat->name;
+		std::string urlStr = url;
+
+		// 检查协议头
+		if (urlStr.find("rtsp://") == 0 ||
+			urlStr.find("rtmp://") == 0 ||
+			urlStr.find("udp://") == 0 ||
+			urlStr.find("rtp://") == 0) {
+			m_isLiveStream = true;
+		}
+		// 检查是否支持 seek
+		else if (pFormatCtx->pb && !(pFormatCtx->pb->seekable & AVIO_SEEKABLE_NORMAL)) {
+			m_isLiveStream = true;
+		}
+		// 检查时长 (纯直播流通常没有时长)
+		else if (pFormatCtx->duration == AV_NOPTS_VALUE) {
+			m_isLiveStream = true;
+		}
+	}
+
 	return true;
 }
 
@@ -132,6 +154,27 @@ int FFmpegDemuxer::readPacket(AVPacket* packet) {
 		return AVERROR(EINVAL); // 无效状态，没有打开
 	}
 	return av_read_frame(pFormatCtx, packet); // 读取下一个 frame/packet
+}
+
+int FFmpegDemuxer::seek(double timestamp_sec) {
+	if (!pFormatCtx) return -1;
+
+	// 将秒转换为默认流的时间基单位
+	// -1 表示使用默认流，通常是视频流
+	int64_t seek_target_ts = static_cast<int64_t>(timestamp_sec * AV_TIME_BASE);
+
+	// AVSEEK_FLAG_BACKWARD: 允许向后seek，对于seek到0或开头是必要的
+	int ret = av_seek_frame(pFormatCtx, -1, seek_target_ts, AVSEEK_FLAG_BACKWARD);
+
+	if (ret < 0) {
+		char errbuf[AV_ERROR_MAX_STRING_SIZE];
+		av_make_error_string(errbuf, AV_ERROR_MAX_STRING_SIZE, ret);
+		std::cerr << "FFmpegDemuxer: Failed to seek: " << errbuf << std::endl;
+	}
+	else {
+		std::cout << "FFmpegDemuxer: Seek to " << timestamp_sec << "s successful." << std::endl;
+	}
+	return ret;
 }
 
 AVFormatContext* FFmpegDemuxer::getFormatContext() const {

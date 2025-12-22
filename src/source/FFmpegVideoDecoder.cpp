@@ -151,6 +151,12 @@ void FFmpegVideoDecoder::close() {
 	}
 }
 
+void FFmpegVideoDecoder::flush() {
+	if (m_codecContext) {
+		avcodec_flush_buffers(m_codecContext);
+	}
+}
+
 int FFmpegVideoDecoder::getWidth() const {
 	return m_codecContext ? m_codecContext->width : 0;
 }

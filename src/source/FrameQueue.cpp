@@ -152,9 +152,14 @@ void FrameQueue::clear() {
 		queue.pop();
 		av_frame_free(&frm);
 	}
-	// eof_signaled 状态通常在clear时不改变，
-	// 因为clear可能是中间操作，EOF代表流的结束。
-	// 如果需要完全重置，可以添加一个reset()方法。
+
+	// 重置状态标志
+	eof_signaled = false;
+	m_abort_request = false;
+
+	// 唤醒所有可能在等待的线程
+	cond_consumer.notify_all(); // 唤醒等待 pop 的消费者
+	cond_producer.notify_all(); // 唤醒等待 push 的生产者
 }
 
 void FrameQueue::signal_eof() {
