@@ -55,6 +55,7 @@ public:
     void pause() override;
     void resume() override;
     bool isPaused() const override;
+    void syncToPts(double pts) override;
 
 private:
     // 不加锁的内部Getters

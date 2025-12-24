@@ -121,4 +121,11 @@ public:
 	 * @brief 检查主时钟是否处于未同步状态。
 	 */
 	virtual bool isClockUnknown() = 0;
+
+	/**
+	 * @brief 强制将主时钟同步到指定的时间戳 (PTS)。
+	 * 用于从 Unknown 状态恢复时，用第一帧的 PTS 校准系统时钟基准。
+	 * @param pts 当前帧的时间戳 (秒)
+	 */
+	virtual void syncToPts(double pts) = 0;
 };

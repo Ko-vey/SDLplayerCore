@@ -59,24 +59,20 @@ void ClockManager::init(bool has_audio, bool has_video) {
 void ClockManager::reset() {
     std::lock_guard<std::mutex> lock(m_mutex);
 
+    // 重置时间值
     m_video_clock_time = 0.0;
     m_audio_clock_time = 0.0;
 
-    // 重置时，默认为暂停状态。
-    // 避免 External Clock 在加载文件期间就开始空转计时。
+    // 重置状态为暂停
+    // 避免外部时钟在加载文件时就开始空转计时
     m_paused = true;
     m_start_time = SDL_GetTicks64(); // 获取自SDL初始化以来的毫秒数
     m_paused_at = m_start_time; // 暂停时间点对齐到当前
 
+    // 默认回退到音频主时钟 (如果配置了音频)
     m_master_clock_type = MasterClockType::AUDIO;
 
-    m_has_audio_stream = false;
-    m_audio_device_id = 0;
-    m_audio_bytes_per_second = 0;
-
-    m_has_video_stream = false;
-    
-    std::cout << "ClockManager reset (paused)." << std::endl;
+    std::cout << "ClockManager reset (paused). Configuration retained." << std::endl;
 }
 
 double ClockManager::getExternalClockTime() {
@@ -224,4 +220,23 @@ void ClockManager::resume() {
 bool ClockManager::isPaused() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_paused;
+}
+
+void ClockManager::syncToPts(double pts) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    std::cout << "ClockManager: Syncing to PTS: " << pts << "s" << std::endl;
+
+    // 1. 如果是音频主时钟，且音频流存在，直接更新音频时钟值
+    if (m_has_audio_stream) {
+        m_audio_clock_time = pts;
+    }
+
+    // 2. 更新视频时钟值
+    m_video_clock_time = pts;
+
+    // 3. 校准外部时钟的基准时间
+    // 确保无论当前主时钟是 Audio 还是 External，基准都已经对齐
+    Uint64 now = m_paused ? m_paused_at : SDL_GetTicks64();
+    m_start_time = now - static_cast<Uint64>(pts * 1000.0);
 }

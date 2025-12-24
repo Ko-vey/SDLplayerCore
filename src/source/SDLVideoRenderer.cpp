@@ -121,7 +121,7 @@ void SDLVideoRenderer::setSyncParameters(AVRational time_base, double frame_rate
 double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
     if (!frame || !m_clock_manager) return 0.0;
 
-    // 计算当前帧的PTS和duration（秒）
+    // 1. 计算当前帧的PTS
     double pts;
     if (frame->pts != AV_NOPTS_VALUE) {
         // 如果没有PTS，就基于上一帧的PTS进行估算
@@ -132,7 +132,7 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
         pts = m_frame_last_pts + m_frame_last_duration;
     }
 
-    // 计算帧的持续时间 duration（秒）
+    // 计算 duration
     double duration = (frame->duration > 0) ? (frame->duration * av_q2d(m_time_base)) : m_frame_last_duration;
 
     // 更新上一帧的信息，用于下一次循环的估算
@@ -141,8 +141,29 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
 
     // 更新视频时钟
     m_clock_manager->setVideoClock(pts);
-    // 计算视频时钟与主时钟的差值（即延时）
-    double delay = pts - m_clock_manager->getMasterClockTime();
+
+    // 处理时钟未同步状态 (例如网络流恢复后的第一帧)
+    if (m_clock_manager->isClockUnknown()) {
+        // 第一帧即为标准。命令时钟管理器以其 PTS 为基准开始计时。
+        m_clock_manager->syncToPts(pts);
+
+        // 刚校准完毕，时钟位于 pts，delay = 0。
+        // 直接返回 0，让这一帧立即显示。
+        std::cout << "VideoRenderer: Clock was unknown. Synced to frame PTS: " << pts << std::endl;
+        return 0.0;
+    }
+
+    // 2. 同步计算逻辑
+    double master_clock = m_clock_manager->getMasterClockTime();
+
+    // 双重保险：万一 syncToPts 没生效或者其他原因导致 master_clock 依然是 NAN
+    if (std::isnan(master_clock)) {
+        // 直接播放，防止逻辑卡死
+        return 0.0;
+    }
+
+    // 计算视频时钟与主时钟的差值（延时）
+    double delay = pts - master_clock;
 
     // 根据延时进行同步决策
     const double AV_NOSYNC_THRESHOLD = 10.0;   // 非同步（重置）阈值 (10s)
@@ -150,7 +171,9 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
     if (delay > AV_NOSYNC_THRESHOLD || delay < -AV_NOSYNC_THRESHOLD) {
         // 时钟差距过大，可能出错了，重置时钟
         std::cout << "VideoRenderer: Clock difference is too large (" << delay << "s), resetting delay." << std::endl;
-        delay = 0;
+        // 如果差异过大，再次触发 syncToPts
+        m_clock_manager->syncToPts(pts); // 自动修复严重的时间轴偏差
+        return 0.0;
     }
 
     // 视频严重落后，请求丢帧
