@@ -28,7 +28,7 @@ PacketQueue::~PacketQueue() {
 	clear(); 
 }
 
-bool PacketQueue::push(AVPacket* packet) {
+bool PacketQueue::push(AVPacket* packet, int serial) {
 	if (!packet) {
 		cerr << "PacketQueue::push: Input packet is null." << endl;
 		return false;
@@ -62,32 +62,28 @@ bool PacketQueue::push(AVPacket* packet) {
 			break;
 		}
 
-		// 丢弃最老的包
-		AVPacket* oldest_pkt = queue.front();
+		// 丢弃旧的包
+		PacketData old_data = queue.front();
 		queue.pop();
 
 		// 更新统计数据
-		m_total_duration_ts -= oldest_pkt->duration;
-		m_total_bytes -= oldest_pkt->size;
-
-		av_packet_free(&oldest_pkt);
-
-		// （可选）调试信息
-		// cerr << "PacketQueue: Dropped a packet to make space. Current size: " << queue.size() << ", duration: " << m_total_duration_ts << endl;
+		m_total_duration_ts -= old_data.pkt->duration;
+		m_total_bytes -= old_data.pkt->size;
+		av_packet_free(&old_data.pkt);
 	}
 
 	// 将新包入队并更新统计
-	queue.push(pkt_clone);
+	queue.push({ pkt_clone, serial });
+
 	m_total_duration_ts += pkt_clone->duration;
 	m_total_bytes += pkt_clone->size;
 
 	lock.unlock();
 	cond_consumer.notify_one(); // 通知一个正在等待的消费者，有新数据了
-
 	return true;
 }
 
-bool PacketQueue::pop(AVPacket* packet, int timeout_ms) {
+bool PacketQueue::pop(AVPacket* packet, int& serial, int timeout_ms) {
 	if (!packet) {
 		cerr << "PacketQueue::pop: Output packet parameter is null." << endl;
 		return false;
@@ -117,24 +113,27 @@ bool PacketQueue::pop(AVPacket* packet, int timeout_ms) {
 		return false;
 	}
 
-	AVPacket* src_pkt = queue.front();
+	PacketData src_data = queue.front();
 	queue.pop();
 
 	// 同步更新统计数据
-	m_total_duration_ts -= src_pkt->duration;
-	m_total_bytes -= src_pkt->size;
+	m_total_duration_ts -= src_data.pkt->duration;
+	m_total_bytes -= src_data.pkt->size;
 
 	lock.unlock();
 
+	// 复制 Packet 数据
 	av_packet_unref(packet);
-	if (av_packet_ref(packet, src_pkt) < 0) {
+	if (av_packet_ref(packet, src_data.pkt) < 0) {
 		cerr << "PacketQueue::pop: av_packet_ref failed." << endl;
-		av_packet_free(&src_pkt);
+		av_packet_free(&src_data.pkt);
 		return false;
 	}
 
-	av_packet_free(&src_pkt);
+	// 输出 serial
+	serial = src_data.serial;
 
+	av_packet_free(&src_data.pkt);
 	return true;
 }
 
@@ -156,18 +155,16 @@ size_t PacketQueue::getTotalBytes() const {
 void PacketQueue::clear() {
 	std::unique_lock<std::mutex> lock(mutex);
 	while (!queue.empty()) {
-		AVPacket* pkt = queue.front();
+		PacketData data = queue.front();
 		queue.pop();
-		av_packet_free(&pkt);
+		av_packet_free(&data.pkt);
 	}
 	// 重置所有统计数据
 	m_total_duration_ts = 0;
 	m_total_bytes = 0;
-
 	// 重置状态标志，使其可以重新接收数据
 	eof_signaled = false;
 	m_abort_request = false;
-
 	// 唤醒可能因队列为空而等待的消费者线程
 	cond_consumer.notify_all();
 }

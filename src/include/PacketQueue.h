@@ -34,7 +34,13 @@ using namespace std;
 
 class PacketQueue {
 private:
-	std::queue<AVPacket*> queue;
+	// 内部数据存储结构
+	struct PacketData {
+		AVPacket* pkt;
+		int serial;
+	};
+
+	std::queue<PacketData> queue;
 	mutable std::mutex mutex;				// mutable 允许在 const 方法中 lock
 	std::condition_variable cond_consumer;	// 当队列为空时，消费者等待
 
@@ -59,24 +65,17 @@ public:
 	~PacketQueue();
 
 	/**
-	* @brief 添加数据包到队列尾部。
-	* 如果队列已满（包数量或总时长超出限制），将从队列头部丢弃最老的数据包（滑动窗口），直到有空间为止。
-	* 此函数不再阻塞。
-	* @return true - 成功，false - 失败（例如队列已中止或packet为null）
-	*/
-	bool push(AVPacket* packet);
+	 * @brief 添加数据包和对应的序列号
+	 * @param serial 当前的播放序列号
+	 */
+	bool push(AVPacket* packet, int serial);
 
 	/**
-	* @brief 从队列头部获取数据包。
-	* @param packet 调用者提供的AVPacket指针，用于接收数据。
-	* @param timeout_ms 等待超时时间（毫秒）。<0:无限等待, 0:非阻塞, >0:等待指定时间。
-	* @return 成功获取返回true，失败返回false（超时、队列为空且EOF、或被abort）。
-	*/
-	bool pop(AVPacket* packet, int timeout_ms = -1);
+	 * @brief 获取数据包和对应的序列号
+	 * @param serial 输出参数，返回该包的序列号
+	 */
+	bool pop(AVPacket* packet, int& serial, int timeout_ms = -1);
 
-	/**
-	* @brief 获取队列当前元素数量
-	*/
 	size_t size() const;
 
 	/**

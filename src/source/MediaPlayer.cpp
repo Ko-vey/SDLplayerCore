@@ -41,6 +41,7 @@ MediaPlayer::MediaPlayer(const string& filepath) :
     videoStreamIndex(-1),
     audioStreamIndex(-1),
     frame_cnt(0),
+    m_seek_serial(0),
     m_videoPacketQueue(nullptr),
     m_videoFrameQueue(nullptr),
     m_audioPacketQueue(nullptr),
@@ -480,6 +481,10 @@ int MediaPlayer::runMainLoop() {
 void MediaPlayer::resync_after_pause() {
     cout << "MediaPlayer: Resyncing after pause..." << endl;
 
+    // 更新序列号
+    m_seek_serial++;
+    cout << "MediaPlayer: Serial updated to " << m_seek_serial.load() << endl;
+
     // 清空 SDL 音频设备缓冲
     if (m_audioRenderer) {
         m_audioRenderer->flushBuffers();
@@ -737,6 +742,7 @@ int MediaPlayer::demux_thread_func() {
 
         read_ret = m_demuxer->readPacket(demux_packet);
 
+        // 错误处理
         if (read_ret < 0) {
             if (read_ret == AVERROR_EOF) {
                 cout << "MediaPlayer DemuxThread: Demuxer reached EOF." << endl;
@@ -755,27 +761,24 @@ int MediaPlayer::demux_thread_func() {
             break; // 退出解复用循环
         }
 
+        // 获取当前最新的序列号
+        int current_serial = m_seek_serial.load();
+
         if (demux_packet->stream_index == videoStreamIndex) {
             if (m_videoPacketQueue) {
-                if (!m_videoPacketQueue->push(demux_packet)) {
-                    // Push 推送失败（例如 队列已满且配置为不阻塞/丢弃 或 已发出 EOF 信号）
-                    // PacketQueue 的 push 在队列已满时记录错误并丢弃数据包
-                    // 该数据包将在下方取消引用，因此这里不用额外处理
-                }
+                m_videoPacketQueue->push(demux_packet, current_serial);
             }
         }
         else if (audioStreamIndex >= 0 && demux_packet->stream_index == audioStreamIndex) {
             if (m_audioPacketQueue) {
-                if (!m_audioPacketQueue->push(demux_packet)) {
-                    // 推送失败，包被丢弃。此处无需额外操作
-                }
+                m_audioPacketQueue->push(demux_packet, current_serial);
             }
         }
         // else {
             // 来自其他流的数据包，暂时忽略
         // }
 
-        // PacketQueue::push 会调用 av_packet_ref，因此这里解复用线程读取的原始包需要 unref
+        // PacketQueue::push 会调用 av_packet_ref，因此这里读取的原始包需要 unref
         av_packet_unref(demux_packet);
     }
 
@@ -809,6 +812,7 @@ int MediaPlayer::video_decode_func() {
     }
 
     AVFrame* decoded_frame = nullptr;
+    int pkt_serial = 0; // 包的序列号
 
     while (!m_quit) {
         // 状态等待逻辑
@@ -820,7 +824,7 @@ int MediaPlayer::video_decode_func() {
         }
         if (m_quit) break;
 
-        if (!m_videoPacketQueue->pop(m_decodingVideoPacket, -1)) {
+        if (!m_videoPacketQueue->pop(m_decodingVideoPacket, pkt_serial, -1)) {
             // 检查 EOF，处理正常的流结束冲洗
             if (m_videoPacketQueue->is_eof()) {
                 cout << "MediaPlayer VideoDecodeThread: Packet queue EOF, starting to flush decoder." << endl;
@@ -859,6 +863,14 @@ int MediaPlayer::video_decode_func() {
                 cout << "MediaPlayer VideoDecodeThread: Packet queue aborted, exiting loop." << endl;
             }
             break; // 退出主循环
+        }
+
+        // 序列号检查
+        if (pkt_serial != m_seek_serial.load()) {
+            // 直接丢弃，不送入解码器
+            cout << "MediaPlayer VideoDecodeThread: Discarding stale packet (serial mismatch)." << endl;
+            av_packet_unref(m_decodingVideoPacket);
+            continue; // 直接进行下一次循环
         }
 
         int decode_ret = m_videoDecoder->decode(m_decodingVideoPacket, &decoded_frame);
@@ -916,6 +928,7 @@ int MediaPlayer::audio_decode_func() {
     }
 
     AVFrame* decoded_frame = nullptr;
+    int pkt_serial = 0;
 
     while (!m_quit) {
         // 状态等待逻辑
@@ -928,7 +941,7 @@ int MediaPlayer::audio_decode_func() {
         if (m_quit) break;
 
         // 1. 从音频包队列中取出一个包
-        if (!m_audioPacketQueue->pop(m_decodingAudioPacket, -1)) {
+        if (!m_audioPacketQueue->pop(m_decodingAudioPacket, pkt_serial, -1)) {
             // 检查 EOF
             if (m_audioPacketQueue->is_eof()) {
                 cout << "MediaPlayer AudioDecodeThread: Packet queue EOF, starting to flush decoder." << endl;
@@ -970,6 +983,13 @@ int MediaPlayer::audio_decode_func() {
                 cout << "MediaPlayer AudioDecodeThread: Packet queue aborted, exiting loop." << endl;
             }
             break; // 退出循环
+        }
+
+        // 序列号检查
+        if (pkt_serial != m_seek_serial.load()) {
+            // 丢弃旧包
+            av_packet_unref(m_decodingAudioPacket);
+            continue;
         }
 
         // 2. 解码数据包

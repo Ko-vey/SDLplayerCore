@@ -83,6 +83,7 @@ private:
     int audioStreamIndex;  // 音频流索引
     // 其他变量
     int frame_cnt;         // 帧计数器
+    std::atomic<int> m_seek_serial; // 全局序列号，用于播放"代际"隔离
 
     // 内部组件
     std::unique_ptr<PacketQueue> m_videoPacketQueue;
