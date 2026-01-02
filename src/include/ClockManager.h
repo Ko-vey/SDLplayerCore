@@ -37,6 +37,7 @@ public:
     void reset() override;
 
     void setMasterClock(MasterClockType type) override;
+    MasterClockType getMasterClockType() const override;
     double getMasterClockTime() override;
 
     void setAudioClock(double pts) override;

@@ -42,6 +42,7 @@ MediaPlayer::MediaPlayer(const string& filepath) :
     audioStreamIndex(-1),
     frame_cnt(0),
     m_seek_serial(0),
+    m_debugStats(std::make_shared<PlayerDebugStats>()),
     m_videoPacketQueue(nullptr),
     m_videoFrameQueue(nullptr),
     m_audioPacketQueue(nullptr),
@@ -188,6 +189,10 @@ void MediaPlayer::init_sdl_video_renderer() {
 
     // 初始化成功，将准备好的、但尚未初始化的渲染器移交给成员变量
     m_videoRenderer = std::move(sdl_renderer);
+    // 注入调试信息 stats
+    if (m_videoRenderer) {
+        m_videoRenderer->setDebugStats(m_debugStats);
+    }
     cout << "MediaPlayer: SDL video renderer component initialized successfully." << endl;
 }
 
@@ -805,9 +810,14 @@ int MediaPlayer::video_decode_thread_entry(void* opaque) {
 // 解码线程在 BUFFERING 和 PAUSED 状态下都应暂停
 int MediaPlayer::video_decode_func() {
     cout << "MediaPlayer: Video decode thread started." << endl;
-    if (!m_videoDecoder || !m_videoPacketQueue || !m_videoFrameQueue) {
-        cerr << "MediaPlayer VideoDecodeThread Error: Decoder or queues not initialized." << endl;
-        if (m_videoFrameQueue) m_videoFrameQueue->signal_eof();
+    if (!m_videoDecoder || !m_videoPacketQueue || !m_videoFrameQueue || !m_debugStats) {
+        cerr << "MediaPlayer VideoDecodeThread Error: Components not initialized." << endl;
+        if (m_videoFrameQueue) {
+            m_videoFrameQueue->signal_eof();
+        }
+        if (!m_debugStats) {
+            cerr << "FATAL: m_debugStats is null!" << endl;
+        }
         return -1;
     }
 
@@ -877,6 +887,21 @@ int MediaPlayer::video_decode_func() {
         av_packet_unref(m_decodingVideoPacket);
 
         if (decode_ret == 0 && decoded_frame) {
+            // 更新解码帧率
+            if (m_debugStats) {
+                m_debugStats->decode_fps.tick();
+                // 更新视频队列信息
+                // AVPacket队列时长单位是 stream->time_base、返回的是 pts 单位，
+                // 需要将其转换为毫秒。需要获取 time_base。
+                if (m_videoDecoder) {
+                    AVRational tb = m_videoDecoder->getTimeBase();
+                    int64_t dur_pts = m_videoPacketQueue->getTotalDuration();
+                    double dur_sec = dur_pts * av_q2d(tb);
+                    m_debugStats->vq_duration_ms = static_cast<long long>(dur_sec * 1000);
+                    m_debugStats->vq_size = static_cast<int>(m_videoPacketQueue->size());
+                }
+            }
+
             if (!m_videoFrameQueue->push(decoded_frame)) {
                 // 检查是不是因为程序正在退出
                 if (m_quit.load()) {
@@ -1177,6 +1202,15 @@ int MediaPlayer::control_thread_func() {
     while (!m_quit) {
         // 每 150ms 检查一次状态
         SDL_Delay(150);
+
+        // 定时同步时钟源状态到调试信息
+        if (m_clockManager && m_debugStats) {
+            // 获取当前时钟类型
+            MasterClockType type = m_clockManager->getMasterClockType();
+
+            // 强转为 int 并原子写入 DebugStats
+            m_debugStats->clock_source_type = static_cast<int>(type);
+        }
 
         // 获取当前主PacketQueue的缓冲时长（秒）
         // 优先基于视频队列计算，若无视频则基于音频队列

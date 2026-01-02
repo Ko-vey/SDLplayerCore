@@ -24,8 +24,8 @@
 
 // 确切的时钟类型
 enum class MasterClockType {
-	AUDIO,
-	EXTERNAL
+	AUDIO,	 // 0
+	EXTERNAL // 1
 };
 
 class IClockManager {
@@ -44,6 +44,11 @@ public:
 	* @param type 时钟类型。
 	*/
 	virtual void setMasterClock(MasterClockType type) = 0;
+
+	/**
+	* @brief 获取当前的主时钟类型。
+	*/
+	virtual MasterClockType getMasterClockType() const = 0;
 
 	/**
 	* @brief 获取主时钟的当前时间（单位：秒）。

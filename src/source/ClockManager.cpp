@@ -108,6 +108,12 @@ double ClockManager::getMasterClockTime() {
     return getExternalClockTime_nolock();
 }
 
+MasterClockType ClockManager::getMasterClockType() const {
+    // lock_guard 自动加锁解锁
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_master_clock_type;
+}
+
 void ClockManager::setVideoClock(double pts) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_video_clock_time = pts;

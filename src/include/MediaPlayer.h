@@ -43,6 +43,8 @@ struct SwsContext;
 #include "IAudioRenderer.h" // 音频渲染器
 #include "IClockManager.h"  // 时钟管理器
 
+#include "PlayerDebugStats.h" // 调试信息组件
+
 using namespace std;
 
 #define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
@@ -58,6 +60,7 @@ extern "C" {
 
 #include "SDL2/SDL.h"
 #include "SDL2/SDL_thread.h"
+#include "SDL2/SDL_ttf.h"
 
 class MediaPlayer {
 public: 
@@ -81,9 +84,11 @@ private:
     // 内部状态变量
     int videoStreamIndex;  // 解复用器找到的视频流索引
     int audioStreamIndex;  // 音频流索引
+
     // 其他变量
     int frame_cnt;         // 帧计数器
     std::atomic<int> m_seek_serial; // 全局序列号，用于播放"代际"隔离
+    std::shared_ptr<PlayerDebugStats> m_debugStats; // 调试信息
 
     // 内部组件
     std::unique_ptr<PacketQueue> m_videoPacketQueue;

@@ -101,6 +101,13 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
         return false;
     }
 
+    // 初始化 OSD
+    m_osd_layer = std::make_unique<OSDLayer>();
+    // 注意：这里的字体路径可能需要根据实际情况调整
+    if (!m_osd_layer->init("C:/Windows/Fonts/arial.ttf")) {
+        std::cerr << "Warning: Failed to init OSD font." << std::endl;
+    }
+
     std::cout << "SDLVideoRenderer: Initialization succeed."<<std::endl;
     return true;
 }
@@ -115,6 +122,20 @@ void SDLVideoRenderer::setSyncParameters(AVRational time_base, double frame_rate
         m_frame_last_duration = DEFAULT_FRAME_DURATION; // 默认值
     }
     m_frame_last_pts = 0.0;
+}
+
+void SDLVideoRenderer::setDebugStats(std::shared_ptr<PlayerDebugStats> stats) {
+    m_debug_stats = stats;
+}
+
+void SDLVideoRenderer::renderOSD() {
+    if (m_osd_layer && m_debug_stats) {
+        int w, h;
+        // 获取当前渲染器输出大小（即窗口大小）
+        if (SDL_GetRendererOutputSize(m_renderer, &w, &h) == 0) {
+            m_osd_layer->render(m_renderer, *m_debug_stats, w, h);
+        }
+    }
 }
 
 // 在工作线程中执行
@@ -165,7 +186,15 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
     // 计算视频时钟与主时钟的差值（延时）
     double delay = pts - master_clock;
 
-    // 根据延时进行同步决策
+    // --- 更新 OSD 数据 ---
+    if (m_debug_stats) {
+        m_debug_stats->av_diff_ms = delay * 1000.0; // 秒转毫秒
+        m_debug_stats->video_current_pts = pts;
+        m_debug_stats->master_clock_val = master_clock;
+        m_debug_stats->clock_source_type = static_cast<int>(m_clock_manager->getMasterClockType());
+    }
+
+    // --- 根据延时进行同步决策 ---
     const double AV_NOSYNC_THRESHOLD = 10.0;   // 非同步（重置）阈值 (10s)
     // 检查延时是否过大，过大则认为时钟不同步，重置延时
     if (delay > AV_NOSYNC_THRESHOLD || delay < -AV_NOSYNC_THRESHOLD) {
@@ -234,6 +263,13 @@ void SDLVideoRenderer::displayFrame() {
     // 计算居中显示的矩形，让GPU在 RenderCopy() 时进行缩放
     SDL_Rect displayRect = calculateDisplayRect(m_window_width, m_window_height);
     SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect);
+
+    // 更新渲染帧率
+    if (m_debug_stats) {
+        m_debug_stats->render_fps.tick();
+    }
+    // 绘制OSD层
+    renderOSD();
     // 显示
     SDL_RenderPresent(m_renderer);
 }
@@ -243,13 +279,13 @@ void SDLVideoRenderer::refresh() {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_renderer || !m_window) return;
 
-    // 根据模式选择不同的刷新行为
+    // 纯音频模式下的刷新行为
     if (m_is_audio_only) {
-        // 在纯音频模式下，只需清屏以响应窗口事件（如尺寸调整）
+        // 只需清屏以响应窗口事件（如尺寸调整）
         SDL_SetRenderDrawColor(m_renderer, 128, 128, 128, 255); // 深灰色背景
         SDL_RenderClear(m_renderer);
     }
-    // 视频模式下的刷新逻辑
+    // 视频模式
     else {
         // 如果没有有效的最后一帧，则只清屏
         if (!m_last_rendered_frame || m_last_rendered_frame->width == 0) {
@@ -258,22 +294,39 @@ void SDLVideoRenderer::refresh() {
         }
         // 如果有帧，就准备一个包含视频的画面
         else {
-            // 使用 m_last_rendered_frame 的数据重新填充纹理，
-            // 这样可以从系统造成的纹理内容丢失中恢复
-            sws_scale(m_sws_context, (const uint8_t* const*)m_last_rendered_frame->data, m_last_rendered_frame->linesize,
-                      0, m_video_height, m_yuv_frame->data, m_yuv_frame->linesize);
+            // 直接使用现有纹理进行重绘
+            SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
+            SDL_RenderClear(m_renderer); // 清除背景
             
-            SDL_UpdateYUVTexture(m_texture, nullptr,
-                                m_yuv_frame->data[0], m_yuv_frame->linesize[0],
-                                m_yuv_frame->data[1], m_yuv_frame->linesize[1],
-                                m_yuv_frame->data[2], m_yuv_frame->linesize[2]);
-
-            SDL_RenderClear(m_renderer);
-
             SDL_Rect displayRect = calculateDisplayRect(m_window_width, m_window_height);
-            SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect);
+
+            // 绘制现有的纹理
+            int ret = SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect);
+
+            // 如果绘制失败（极少，如上下文丢失），尝试恢复数据并重绘
+            if (ret < 0) {
+                std::cerr << "SDLVideoRenderer: RenderCopy failed (" << SDL_GetError() << "), attempting to reload texture..." << std::endl;
+
+                if (m_yuv_frame && m_sws_context && m_last_rendered_frame) {
+                    // 重新进行格式转换
+                    sws_scale(m_sws_context, (const uint8_t* const*)m_last_rendered_frame->data, m_last_rendered_frame->linesize,
+                        0, m_video_height, m_yuv_frame->data, m_yuv_frame->linesize);
+
+                    // 重新上传数据到纹理
+                    SDL_UpdateYUVTexture(m_texture, nullptr,
+                        m_yuv_frame->data[0], m_yuv_frame->linesize[0],
+                        m_yuv_frame->data[1], m_yuv_frame->linesize[1],
+                        m_yuv_frame->data[2], m_yuv_frame->linesize[2]);
+
+                    // 数据恢复后，必须再次调用 RenderCopy
+                    if (SDL_RenderCopy(m_renderer, m_texture, nullptr, &displayRect) < 0) {
+                        std::cerr << "SDLVideoRenderer: Recovery failed. Texture might be invalid." << std::endl;
+                    }
+                }
+            }
         }
     }
+    renderOSD();
 
     SDL_RenderPresent(m_renderer);
     //std::cout << "SDLVideoRenderer: Display refreshed with last valid frame." << std::endl;

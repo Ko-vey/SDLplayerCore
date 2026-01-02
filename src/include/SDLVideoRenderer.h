@@ -21,6 +21,9 @@
 #pragma once
 
 #include "IVideoRenderer.h"
+#include "OSDLayer.h"
+#include "PlayerDebugStats.h"
+
 #include <string>
 #include <iostream>
 #include <mutex>
@@ -56,11 +59,18 @@ private:
     enum AVPixelFormat m_decoder_pixel_format;
     bool m_is_audio_only = false;   // 标记是否为纯音频模式
 
-    // 计算保持宽高比的显示矩形
-    SDL_Rect calculateDisplayRect(int windowWidth, int windowHeight) const;
-
     std::mutex m_mutex;                         // 用于保护对SDL资源的访问
     AVFrame* m_last_rendered_frame = nullptr;   // 保存最后一帧的副本，用于刷新和恢复
+
+    // 调试信息相关成员
+    std::unique_ptr<OSDLayer> m_osd_layer;
+    std::shared_ptr<PlayerDebugStats> m_debug_stats;
+
+    // 计算保持宽高比的显示矩形
+    SDL_Rect calculateDisplayRect(int windowWidth, int windowHeight) const;
+    
+    // 绘制OSD调试层
+    void renderOSD();
 
 public:
     SDLVideoRenderer() = default;
@@ -75,6 +85,8 @@ public:
      * @param frame_rate 视频的平均帧率，用于估算帧持续时间
      */
     void setSyncParameters(AVRational time_base, double frame_rate);
+
+    void setDebugStats(std::shared_ptr<PlayerDebugStats> stats) override;
 
     // 渲染逻辑相关方法
     double calculateSyncDelay(AVFrame* frame) override;

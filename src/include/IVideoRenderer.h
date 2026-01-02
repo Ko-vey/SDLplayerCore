@@ -20,7 +20,10 @@
 
 #pragma once
 
+#include <memory>
+
 #include "IClockManager.h"
+#include "PlayerDebugStats.h"
 
 struct AVFrame;		// 数据帧结构体（包含解码后的视频数据）
 enum AVPixelFormat;	// 像素格式枚举
@@ -127,4 +130,10 @@ public:
 	 * @param height 输出参数：窗口高度
 	 */
 	virtual void getWindowSize(int& width, int& height) const = 0;
+
+	/**
+	 * @brief 获取当前播放器全局的调试信息
+	 * @param stats 当前状态信息
+	 */
+	virtual void setDebugStats(std::shared_ptr<PlayerDebugStats> stats) = 0;
 };
