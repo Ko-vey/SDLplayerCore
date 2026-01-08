@@ -48,13 +48,15 @@ bool FFmpegDemuxer::open(const char* url) {
 	// 确保关闭先前的上下文
 	close();
 
+	// 初始化状态
+	m_isLiveStream = false; // 默认先重置为点播模式
+	m_abort_request.store(false); // 重置中断标志
+
 	pFormatCtx = avformat_alloc_context();
 	if (!pFormatCtx) {
 		cerr << "FFmpegDemuxer Error: Could not allocate format context." << endl;
 		return false;
 	}
-
-	m_abort_request.store(false); // 重置中断标志
 
 	// 设置中断回调
 	pFormatCtx->interrupt_callback.callback = FFmpegDemuxer::interruptCallback;
@@ -69,7 +71,6 @@ bool FFmpegDemuxer::open(const char* url) {
 	
 	// 打开输入流，并传入刚刚设置的选项
 	int ret = avformat_open_input(&pFormatCtx, url, nullptr, &opts);
-
 	// 检查是否有未使用的选项（用于调试），并释放字典
 	if (opts) {
 		char* value = nullptr;
@@ -98,11 +99,38 @@ bool FFmpegDemuxer::open(const char* url) {
 		return false;
 	}
 
-	// 将有关文件的信息转存到标准错误（可选）
+	// 将有关文件的信息转存到标准错误
 	av_dump_format(pFormatCtx, 0, url, 0);
 
 	m_url = url;
 	findStreamsInternal();
+
+	// --- 检测是否为直播流 ---
+	if (pFormatCtx) {
+		std::string formatName = pFormatCtx->iformat->name ? pFormatCtx->iformat->name : "";
+		std::string urlStr = url;
+
+		// 协议/格式名称强匹配
+		if (formatName == "rtsp" || formatName == "flv" || formatName == "hls" || formatName == "rtp") {
+			// 注意：flv和hls也可以是点播，但通常作为直播处理逻辑（允许丢包）更安全
+			// 如果确定是文件型flv，通常有duration
+			m_isLiveStream = true;
+		}
+		// URL 协议头检查
+		else if (urlStr.find("rtsp://") == 0 || urlStr.find("rtmp://") == 0 || urlStr.find("udp://") == 0) {
+			m_isLiveStream = true;
+		}
+		// 特征检查：无时长 且 不可Seek
+		// 注意：有些直播流可能有极其巨大的 duration (INT64_MAX)，或者 0
+		else if (pFormatCtx->duration == AV_NOPTS_VALUE) {
+			m_isLiveStream = true;
+		}
+		// IO Context 检查
+		else if (pFormatCtx->pb && !(pFormatCtx->pb->seekable & AVIO_SEEKABLE_NORMAL)) {
+			// 如果底层IO不支持seek，通常认为是直播流
+			m_isLiveStream = true;
+		}
+	}
 
 	cout << "FFmpegDemuxer: Opened " << url << " successfully." << endl;
 	if (m_videoStreamIndex != -1) {
@@ -111,28 +139,7 @@ bool FFmpegDemuxer::open(const char* url) {
 	if (m_audioStreamIndex != -1) {
 		cout << " Audio stream index: " << m_audioStreamIndex << endl;
 	}
-
-	// --- 检测是否为直播流 ---
-	if (pFormatCtx) {
-		std::string formatName = pFormatCtx->iformat->name;
-		std::string urlStr = url;
-
-		// 检查协议头
-		if (urlStr.find("rtsp://") == 0 ||
-			urlStr.find("rtmp://") == 0 ||
-			urlStr.find("udp://") == 0 ||
-			urlStr.find("rtp://") == 0) {
-			m_isLiveStream = true;
-		}
-		// 检查是否支持 seek
-		else if (pFormatCtx->pb && !(pFormatCtx->pb->seekable & AVIO_SEEKABLE_NORMAL)) {
-			m_isLiveStream = true;
-		}
-		// 检查时长 (纯直播流通常没有时长)
-		else if (pFormatCtx->duration == AV_NOPTS_VALUE) {
-			m_isLiveStream = true;
-		}
-	}
+	cout << "FFmpegDemuxer: Stream is detected as: " << (m_isLiveStream ? "LIVE" : "VOD/LOCAL") << endl;
 
 	return true;
 }
@@ -241,4 +248,8 @@ AVRational FFmpegDemuxer::getTimeBase(int streamIndex) const {
 	}
 	// 正确地从 AVStream 结构体中获取 time_base
 	return pFormatCtx->streams[streamIndex]->time_base;
+}
+
+bool FFmpegDemuxer::isLiveStream() const {
+	return m_isLiveStream; 
 }

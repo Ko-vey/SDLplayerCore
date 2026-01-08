@@ -21,8 +21,12 @@
 #include "../include/PacketQueue.h"
 #include <iostream>
 
-PacketQueue::PacketQueue(size_t max_packet_count, int64_t max_duration_in_ts)
-	: max_size(max_packet_count), max_duration_ts(max_duration_in_ts) {}
+PacketQueue::PacketQueue(size_t max_packet_count, int64_t max_duration_in_ts, bool block_on_full)
+	: max_size(max_packet_count), 
+	max_duration_ts(max_duration_in_ts),
+	m_block_on_full(block_on_full)
+{
+}
 
 PacketQueue::~PacketQueue() { 
 	clear(); 
@@ -53,33 +57,49 @@ bool PacketQueue::push(AVPacket* packet, int serial) {
 		return false;
 	}
 
-	// “满则丢”的滑动窗口机制
-	// 如果队列超出限制，则从头部丢弃最老的数据包
-	while ((max_size > 0 && queue.size() >= max_size) ||
-		(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts))
-	{
-		if (queue.empty()) { // 一般不会发生，但用于安全检查
-			break;
+	// 检查队列是否已满
+	bool is_full = (max_size > 0 && queue.size() >= max_size) ||
+		(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts);
+
+	if (is_full) {
+		if (m_block_on_full) {
+			// 【本地文件模式】阻塞等待，直到不满
+			while (is_full && !m_abort_request.load()) {
+				cond_producer.wait(lock);
+				// 唤醒后重新检查状态
+				is_full = (max_size > 0 && queue.size() >= max_size) ||
+					(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts);
+			}
+			if (m_abort_request.load()) {
+				av_packet_free(&pkt_clone);
+				return false;
+			}
 		}
-
-		// 丢弃旧的包
-		PacketData old_data = queue.front();
-		queue.pop();
-
-		// 更新统计数据
-		m_total_duration_ts -= old_data.pkt->duration;
-		m_total_bytes -= old_data.pkt->size;
-		av_packet_free(&old_data.pkt);
+		else {
+			// 【直播模式】丢弃旧包
+			while ((max_size > 0 && queue.size() >= max_size) ||
+				(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts))
+			{
+				if (queue.empty()) break;
+				// 丢包
+				PacketData old_data = queue.front();
+				queue.pop();
+				// 更新统计数据
+				m_total_duration_ts -= old_data.pkt->duration;
+				m_total_bytes -= old_data.pkt->size;
+				av_packet_free(&old_data.pkt);
+				// cout << "Drop packet for live stream latency control" << endl;
+			}
+		}
 	}
 
 	// 将新包入队并更新统计
 	queue.push({ pkt_clone, serial });
-
 	m_total_duration_ts += pkt_clone->duration;
 	m_total_bytes += pkt_clone->size;
 
 	lock.unlock();
-	cond_consumer.notify_one(); // 通知一个正在等待的消费者，有新数据了
+	cond_consumer.notify_one();
 	return true;
 }
 
@@ -134,6 +154,12 @@ bool PacketQueue::pop(AVPacket* packet, int& serial, int timeout_ms) {
 	serial = src_data.serial;
 
 	av_packet_free(&src_data.pkt);
+
+	// 唤醒可能在等待的生产者
+	if (m_block_on_full) {
+		cond_producer.notify_one();
+	}
+
 	return true;
 }
 
@@ -159,14 +185,17 @@ void PacketQueue::clear() {
 		queue.pop();
 		av_packet_free(&data.pkt);
 	}
-	// 重置所有统计数据
+	// 重置统计数据
 	m_total_duration_ts = 0;
 	m_total_bytes = 0;
+
 	// 重置状态标志，使其可以重新接收数据
 	eof_signaled = false;
 	m_abort_request = false;
-	// 唤醒可能因队列为空而等待的消费者线程
+
+	// 唤醒消费者和生产者线程
 	cond_consumer.notify_all();
+	cond_producer.notify_all();
 }
 
 void PacketQueue::signal_eof() {
@@ -180,7 +209,10 @@ void PacketQueue::abort() {
 	std::unique_lock<std::mutex> lock(mutex);
 	m_abort_request.store(true);
 	lock.unlock();
-	cond_consumer.notify_all(); // 唤醒所有等待的消费者，让他们检查abort标志
+
+	// 唤醒消费者和生产者线程
+	cond_consumer.notify_all();
+	cond_producer.notify_all();
 }
 
 bool PacketQueue::is_eof() const {

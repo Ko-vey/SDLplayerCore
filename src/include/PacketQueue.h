@@ -43,6 +43,8 @@ private:
 	std::queue<PacketData> queue;
 	mutable std::mutex mutex;				// mutable 允许在 const 方法中 lock
 	std::condition_variable cond_consumer;	// 当队列为空时，消费者等待
+	std::condition_variable cond_producer;  // 当队列为满时，生产者阻塞
+	bool m_block_on_full = false;           // 生产者阻塞标志：true=阻塞，false=丢包
 
 	std::atomic<bool> eof_signaled{ false };	// 流结束标志
 	std::atomic<bool> m_abort_request{ false }; // 强制中断标志
@@ -60,8 +62,10 @@ public:
 	 * @brief 构造函数
 	 * @param max_packet_count 队列允许的最大包数量，0表示无限制
 	 * @param max_duration_in_ts 队列允许的最大缓冲时长（以AVStream->time_base为单位），0表示无限制
+	 * @param block_on_full 队列的阻塞策略，true-满则等，false-满则丢
 	 */
-	PacketQueue(size_t max_packet_count = 0, int64_t max_duration_in_ts = 0);
+	PacketQueue(size_t max_packet_count = 0, int64_t max_duration_in_ts = 0, bool block_on_full = false);
+
 	~PacketQueue();
 
 	/**

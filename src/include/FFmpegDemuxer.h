@@ -57,7 +57,7 @@ public:
 	AVRational getTimeBase(int streamIndex) const override;
 	double getDuration() const override;
 
-	bool isLiveStream() const override { return m_isLiveStream; }
+	bool isLiveStream() const override;
 
 	// 用于从外部（如 MediaPlayer）请求中断
 	void requestAbort(bool abort);

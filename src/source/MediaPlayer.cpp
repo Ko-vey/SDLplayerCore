@@ -273,7 +273,7 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
         return -1;
     }
 
-    //1、创建并打开解复用器Demuxer
+    // 创建并打开解复用器
     m_demuxer = std::make_unique<FFmpegDemuxer>();
     if (!m_demuxer->open(filepath.c_str())) {
         cerr << "MediaPlayer Error: Demuxer failed to open input: " << filepath << endl;
@@ -281,29 +281,40 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
     }
     cout << "MediaPlayer: Demuxer opened successfully." << endl;
 
-    // 2、查找音视频流
+    // --- 获取流类型 ---
+    // 区分直播和点播，以决定队列的行为策略
+    bool isLive = m_demuxer->isLiveStream();
+    bool block_on_full = !isLive; // 本地文件(非Live)需要阻塞，直播需要丢包
+    cout << "MediaPlayer: Stream Mode: " << (isLive ? "LIVE (Drop on full)" : "LOCAL/VOD (Block on full)") << endl;
+
+    // 查找流
     videoStreamIndex = m_demuxer->findStream(AVMEDIA_TYPE_VIDEO);
     audioStreamIndex = m_demuxer->findStream(AVMEDIA_TYPE_AUDIO);
 
     // 检查是否至少有一个可播放的流
     if (videoStreamIndex < 0 && audioStreamIndex < 0) {
         cerr << "MediaPlayer Error: Demuxer didn't find any video or audio streams." << endl;
-        return -1; // 致命错误
+        return -1;
     }
 
-    // 3. 根据流信息创建 PacketQueue
+    // 初始化 PacketQueue
     if (videoStreamIndex >= 0) {
         AVRational time_base = m_demuxer->getTimeBase(videoStreamIndex);
+        // 如果无法获取时间基，或者直播流，给一个保守的默认值
         if (time_base.den == 0) {
+            // 默认行为
             cerr << "MediaPlayer Warning: Invalid video time_base { " << time_base.num << ", " << time_base.den << " }. Using default PacketQueue settings." << endl;
-            m_videoPacketQueue = std::make_unique<PacketQueue>(150, 0);
+            m_videoPacketQueue = std::make_unique<PacketQueue>(150, 0, block_on_full);
         }
         else {
-            // 设置目标缓冲时长，如10秒
-            double target_duration_sec = 10.0;
+            // 本地文件给大一点的缓冲(如10秒)，直播流给小一点(如2秒)
+            double target_duration_sec = isLive ? 2.0 : 10.0;
             int64_t max_duration_ts = static_cast<int64_t>(target_duration_sec / av_q2d(time_base));
-            cout << "MediaPlayer: Video PacketQueue configured for " << target_duration_sec << "s buffer (" << max_duration_ts << " in time_base units)." << endl;
-            m_videoPacketQueue = std::make_unique<PacketQueue>(150, max_duration_ts);
+
+            cout << "MediaPlayer: Video PacketQueue configured for " << target_duration_sec
+                << "s buffer. Strategy: " << (block_on_full ? "BLOCK" : "DROP") << endl;
+
+            m_videoPacketQueue = std::make_unique<PacketQueue>(150, max_duration_ts, block_on_full);
         }
     }
 
@@ -311,18 +322,21 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
         AVRational time_base = m_demuxer->getTimeBase(audioStreamIndex);
         if (time_base.den == 0) {
             cerr << "MediaPlayer Warning: Invalid audio time_base { " << time_base.num << ", " << time_base.den << " }. Using default PacketQueue settings." << endl;
-            m_audioPacketQueue = std::make_unique<PacketQueue>(150, 0);
+            m_audioPacketQueue = std::make_unique<PacketQueue>(200, 0, block_on_full);
         }
         else {
-            // 音频缓冲可以设置得更长一些，如15秒
-            double target_duration_sec = 15.0;
+            // 音频缓冲可以设置得更长一些
+            double target_duration_sec = isLive ? 3.0 : 15.0;
             int64_t max_duration_ts = static_cast<int64_t>(target_duration_sec / av_q2d(time_base));
-            cout << "MediaPlayer: Audio PacketQueue configured for " << target_duration_sec << "s buffer (" << max_duration_ts << " in time_base units)." << endl;
-            m_audioPacketQueue = std::make_unique<PacketQueue>(150, max_duration_ts);
+
+            cout << "MediaPlayer: Audio PacketQueue configured for " << target_duration_sec
+                << "s buffer. Strategy: " << (block_on_full ? "BLOCK" : "DROP") << endl;
+
+            m_audioPacketQueue = std::make_unique<PacketQueue>(200, max_duration_ts, block_on_full);
         }
     }
 
-    // 4. 初始化视频解码器 (如果视频流存在)
+    // 初始化视频解码器 (如果视频流存在)
     if (videoStreamIndex >= 0) {
         cout << "MediaPlayer: Video stream found at index: " << videoStreamIndex << endl;
         AVCodecParameters* pVideoCodecParams = m_demuxer->getCodecParameters(videoStreamIndex);
@@ -342,7 +356,7 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
         cout << "MediaPlayer: No video stream found." << endl;
     }
 
-    // 5. 初始化音频解码器 (如果音频流存在)
+    // 初始化音频解码器 (如果音频流存在)
     if (audioStreamIndex >= 0) {
         cout << "MediaPlayer: Audio stream found at index: " << audioStreamIndex << endl;
         AVCodecParameters* pAudioCodecParams = m_demuxer->getCodecParameters(audioStreamIndex);
@@ -359,7 +373,7 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
         cout << "MediaPlayer: No audio stream found." << endl;
     }
 
-    // 6. 再次检查，如果所有流都初始化失败，则报错
+    // 再次检查，如果所有流都初始化失败，则报错
     if (videoStreamIndex < 0 && audioStreamIndex < 0) {
         cerr << "MediaPlayer Error: Failed to initialize any valid decoders." << endl;
         return -1;
@@ -384,42 +398,56 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
             cout << "MediaPlayer: Escape key pressed, requesting quit." << endl;
             m_quit = true;
         }
-        // 空格键暂停
+        // 空格键暂停/恢复
         if (event.key.keysym.sym == SDLK_SPACE) {
             std::unique_lock<std::mutex> lock(m_state_mutex);
             PlayerState current_state = m_playerState.load();
+            bool isLive = m_demuxer && m_demuxer->isLiveStream();
 
             if (current_state == PlayerState::PAUSED) {
-                // 从暂停恢复到播放
-                cout << "MediaPlayer: Resuming from PAUSED state." << endl;
+                // --- 恢复播放 ---
+                cout << "MediaPlayer: Resuming from PAUSED..." << endl;
+                
+                if (isLive) {
+                    // 【直播流 - 重型恢复】
+                    // 必须消除暂停期间积累的巨大延迟
+                    cout << "MediaPlayer: Heavy Resync for LIVE mode." << endl;
 
-                // 1. 执行重同步操作
-                resync_after_pause();
+                    // 清空旧数据
+                    resync_after_pause();
+                    // 必须重新缓冲以填满 jitter buffer (PacketQueue)
+                    m_playerState.store(PlayerState::BUFFERING);
+                    cout << "MediaPlayer: Switched to BUFFERING state to refill buffers after pause." << endl;
+                }
+                else {
+                    // 【本地文件 - 轻量级恢复】
+                    // 队列里有数据，解码器状态完好，直接继续
+                    cout << "MediaPlayer: Lightweight Resume for LOCAL mode." << endl;
 
-                // 2. 切换到缓冲状态，让 control_thread 接管后续流程
-                //    此时时钟在 resync_after_pause() 中已被重置并暂停
-                m_playerState.store(PlayerState::BUFFERING);
-                cout << "MediaPlayer: Switched to BUFFERING state to refill buffers after pause." << endl;
+                    // 恢复时钟 (补回暂停流逝的时间)
+                    if (m_clockManager) m_clockManager->resume();
 
-                // 3. 唤醒 解复用线程 开始拉流，解码/渲染线程 会因状态不为 PLAYING 而继续等待
+                    // 直接切回播放状态 (消费者线程会立即读到队列里的现存数据)
+                    m_playerState.store(PlayerState::PLAYING);
+                }
+
+                // 唤醒所有等待线程
                 lock.unlock();
                 m_state_cond.notify_all();
             }
             else if (current_state == PlayerState::PLAYING || current_state == PlayerState::BUFFERING) {
-                // 从播放或缓冲状态切换到暂停
-                cout << "MediaPlayer: Switching to PAUSED state from "
-                    << (current_state == PlayerState::PLAYING ? "PLAYING" : "BUFFERING") << "." << endl;
+                // --- 暂停播放 ---
+                cout << "MediaPlayer: Pausing..." << endl;
 
-                m_clockManager->pause();
+                // 暂停时钟
+                if (m_clockManager) {
+                    m_clockManager->pause();
+                }
+                
+                // 切换状态
                 m_playerState.store(PlayerState::PAUSED);
                 
-                // 切换到PAUSED时，不需要notify_all()。
-                // 其他线程在下一次循环检查wait条件时会自动阻塞。
-            }
-            else {
-                // 在 IDLE 或 STOPPED 状态下忽略
-                cout << "MediaPlayer: Pause ignored. Current state is "
-                    << static_cast<int>(current_state) << endl;
+                // 不需要notify，其他线程会在下一次循环检查条件时自动阻塞
             }
         }
         break;
@@ -484,50 +512,37 @@ int MediaPlayer::runMainLoop() {
 }
 
 void MediaPlayer::resync_after_pause() {
-    cout << "MediaPlayer: Resyncing after pause..." << endl;
+    cout << "MediaPlayer: Executing Force Resync (Flush queues & state)..." << endl;
 
-    // 更新序列号
+    // 序列号自增
     m_seek_serial++;
     cout << "MediaPlayer: Serial updated to " << m_seek_serial.load() << endl;
 
-    // 清空 SDL 音频设备缓冲
+    // 清空 SDL 音频设备缓冲 (消除几百毫秒的旧声音)
     if (m_audioRenderer) {
         m_audioRenderer->flushBuffers();
     }
 
-    // 清空队列
+    // 清空所有队列
     if (m_videoPacketQueue) m_videoPacketQueue->clear();
     if (m_audioPacketQueue) m_audioPacketQueue->clear();
     if (m_videoFrameQueue) m_videoFrameQueue->clear();
     if (m_audioFrameQueue) m_audioFrameQueue->clear();
 
-    // 3. 区分流类型处理 Seek 和 时钟
-    bool isLive = m_demuxer && m_demuxer->isLiveStream();
-
-    if (isLive) {
-        // --- 直播流处理 ---
-        // 禁止 seek(0)，否则会导致连接断开或协议错误
-        cout << "MediaPlayer: Live stream detected, skipping seek(0)." << endl;
-
-        // 将时钟标记为未知，等待渲染线程收到第一帧后重新校准
-        if (m_clockManager) m_clockManager->setClockToUnknown();
-    }
-    else {
-        // --- 本地文件处理 ---
-        // Seek 到 0 (重播)
-        if (m_demuxer) {
-            m_demuxer->seek(0);
-        }
-        // 重置时钟为 0
-        if (m_clockManager) m_clockManager->reset();
-    }
-
-    // 刷新解码器上下文
+    // 刷新解码器 (清空 ffmpeg 内部缓存)
     if (m_videoDecoder) m_videoDecoder->flush();
     if (m_audioDecoder) m_audioDecoder->flush();
 
-    m_demuxer_eof = false; // 重置解复用器EOF标志
+    // 特殊处理
+    bool isLive = m_demuxer && m_demuxer->isLiveStream();
+    if (isLive) {
+        // 直播流：时钟置为未知，等待新的一帧到来重新校准同步
+        if (m_clockManager) {
+            m_clockManager->setClockToUnknown();
+        }
+    }
 
+    m_demuxer_eof = false; // 重置解复用器EOF标志
     cout << "MediaPlayer: Resync complete." << endl;
 }
 
@@ -569,40 +584,38 @@ void MediaPlayer::cleanup_ffmpeg_resources() {
 void MediaPlayer::cleanup() {
     cout << "MediaPlayer: Initiating full cleanup..." << endl;
 
-    // 1、发送全局退出信号 (所有线程循环的通用退出条件)
+    // 发送全局退出信号 
     m_quit.store(true);
-    // 唤醒所有可能在等待状态变化的线程，让它们能检查到 m_quit
     m_state_cond.notify_all();
+    
+    // 在等待线程前，必须先打断所有因队列空/满而导致的阻塞（push/pop）
+    if (m_videoPacketQueue) m_videoPacketQueue->abort();
+    if (m_audioPacketQueue) m_audioPacketQueue->abort();
+    if (m_videoFrameQueue) m_videoFrameQueue->abort();
+    if (m_audioFrameQueue) m_audioFrameQueue->abort();
 
-    // --- 第 1 阶段：停止生产者 (Demuxer) ---
+    // --- 停止生产者 (Demuxer) ---
     cout << "MediaPlayer: Shutting down producer threads..." << endl;
+    
+    // 中断 FFmpeg 底层 IO (防止卡在 av_read_frame)
     if (m_demuxer) {
         // 仅向 demuxer 发送中断信号
-        // m_demuxer 为 IDemuxer，需要安全向下转型为 FFmpegDemuxer，以调用其特有的 requestAbort()。
+        // m_demuxer 安全向下转型为 FFmpegDemuxer，以调用其特有的 requestAbort()。
         FFmpegDemuxer* ffmpeg_demuxer = dynamic_cast<FFmpegDemuxer*>(m_demuxer.get());
         if (ffmpeg_demuxer) {
             cout << "MediaPlayer: Requesting demuxer interrupt..." << endl;
             ffmpeg_demuxer->requestAbort(true);
         }
     }
-    // 立即等待 Demuxer 线程结束，保证不再产生新的 AVPacket
-    // Demuxer 退出前会向 Packet Queues 发送 EOF 信号
+
     if (m_demuxThread) {
         cout << "MediaPlayer: Waiting for demux thread to finish..." << endl;
         SDL_WaitThread(m_demuxThread, nullptr);
         cout << "MediaPlayer: Demux thread finished." << endl;
     }
 
-    // --- 第 2 阶段：停止中间处理者 (Decoders) ---
+    // --- 停止中间处理者 (Decoders) ---
     cout << "MediaPlayer: Shutting down decoder threads..." << endl;
-
-    // 在等待 Decoder 线程前，
-    // 必须 abort 其输入队列 (PacketQueue) 和输出队列 (FrameQueue)。
-    // 确保无论 Decoder 卡在 pop() 还是 push()都能被唤醒。
-    if (m_videoPacketQueue) m_videoPacketQueue->abort();
-    if (m_audioPacketQueue) m_audioPacketQueue->abort();
-    if (m_videoFrameQueue) m_videoFrameQueue->abort();
-    if (m_audioFrameQueue) m_audioFrameQueue->abort();
 
     if (m_videoDecodeThread) {
         cout << "MediaPlayer: Waiting for video decode thread to finish..." << endl;
@@ -614,12 +627,9 @@ void MediaPlayer::cleanup() {
         SDL_WaitThread(m_audioDecodeThread, nullptr);
         cout << "MediaPlayer: Audio decode thread finished." << endl;
     }
-    // 此刻保证不会再有新的 AVFrame 产生。
-    // Decoder 退出前会向 Frame Queues 发送 EOF 信号。
 
-    // --- 第 3 阶段：停止消费者 (Renderers) ---
+    // --- 停止消费者 (Renderers) ---
     cout << "MediaPlayer: Shutting down consumer threads..." << endl;
-    // 渲染线程会因为 FrameQueue 的 EOF 而自然退出。
 
     // 推送退出事件，确保主线程的 SDL_WaitEvent 也能退出
     SDL_Event event;
@@ -644,7 +654,7 @@ void MediaPlayer::cleanup() {
     }
     cout << "MediaPlayer: All threads have been joined." << endl;
     
-    // --- 第 4 阶段：清理资源 ---
+    // --- 清理资源 ---
     cout << "MediaPlayer: Cleaning up resources..." << endl;
 
     // 释放SDL渲染器(依赖于FFmpeg信息)
