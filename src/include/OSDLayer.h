@@ -53,7 +53,21 @@ public:
         std::vector<std::string> lines;
         std::ostringstream oss;
 
-        // 1. V-Q Info
+        // --- Player State ---
+        oss << "State: ";
+        int stateVal = stats.current_state.load();
+        switch (stateVal) {
+        case 0: oss << "IDLE"; break;
+        case 1: oss << "BUFFERING..."; break;
+        case 2: oss << "PLAYING"; break;
+        case 3: oss << "PAUSED"; break;
+        case 4: oss << "STOPPED"; break;
+        default: oss << "UNKNOWN (" << stateVal << ")"; break;
+        }
+        lines.push_back(oss.str());
+        oss.str(""); oss.clear();
+
+        // --- V-Q Info ---
         // duration 转换为秒，保留2位小数
         double vq_sec = stats.vq_duration_ms.load() / 1000.0;
         oss << "V-Q: " << stats.vq_size.load() << " pkts / "
@@ -61,21 +75,21 @@ public:
         lines.push_back(oss.str());
         oss.str(""); oss.clear();
 
-        // 2. A-V Sync
+        // --- A-V Sync ---
         oss << "A-V Diff: " << std::fixed << std::setprecision(1) << stats.av_diff_ms.load() << " ms "
             << "(VPts:" << std::setprecision(2) << stats.video_current_pts.load()
             << " - Clock:" << stats.master_clock_val.load() << ")";
         lines.push_back(oss.str());
         oss.str(""); oss.clear();
 
-        // 3. Clock Source
+        // --- Clock Source ---
         int src = stats.clock_source_type.load();
         std::string srcStr = (src == 0) ? "Audio" : (src == 1 ? "External" : "Video");
         oss << "Clock Source: " << srcStr;
         lines.push_back(oss.str());
         oss.str(""); oss.clear();
 
-        // 4. FPS
+        // --- FPS ---
         oss << "FPS: Decode " << stats.decode_fps.getFPS()
             << " / Render " << stats.render_fps.getFPS();
         lines.push_back(oss.str());

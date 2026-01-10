@@ -64,7 +64,7 @@ extern "C" {
 
 class MediaPlayer {
 public: 
-    // 播放器状态
+    // 播放器状态（修改时记得和OSDLayer::render()中的switch case同步）
     enum class PlayerState {
         IDLE,       // 空闲
         BUFFERING,  // 缓冲
@@ -153,14 +153,16 @@ private:
     // 事件处理
     int handle_event(const SDL_Event& event);
     void resync_after_pause();
-    // 辅助函数（构造和初始化）
+    // 构造和初始化
     void init_components(const string& filepath);
     void init_ffmpeg_resources(const string& filepath);
     int init_demuxer_and_decoders(const string& filepath);
     void init_sdl_video_renderer();
     void init_sdl_audio_renderer();
     void start_threads();
-    // 辅助函数（析构和资源清理）
+    // 析构和资源清理
     void cleanup_ffmpeg_resources();
     void cleanup();
+
+    void setPlayerState(PlayerState newState);
 };

@@ -50,4 +50,8 @@ struct PlayerDebugStats {
     // FPS
     FPSCounter decode_fps;
     FPSCounter render_fps;
+
+    // ²¥·ÅÆ÷×´Ì¬
+    // 0:IDLE, 1:BUFFERING, 2:PLAYING, 3:PAUSED, 4:STOPPED
+    std::atomic<int> current_state{ 0 };
 };

@@ -36,13 +36,13 @@ using namespace std;
 // 初始化所有组件并启动工作线程，失败时抛出 std::runtime_error
 MediaPlayer::MediaPlayer(const string& filepath) :
     m_quit(false),
-    m_playerState(PlayerState::BUFFERING),
+    m_playerState(PlayerState::IDLE),
     m_demuxer_eof(false),
     videoStreamIndex(-1),
     audioStreamIndex(-1),
     frame_cnt(0),
     m_seek_serial(0),
-    m_debugStats(std::make_shared<PlayerDebugStats>()),
+    m_debugStats(nullptr),
     m_videoPacketQueue(nullptr),
     m_videoFrameQueue(nullptr),
     m_audioPacketQueue(nullptr),
@@ -66,9 +66,14 @@ MediaPlayer::MediaPlayer(const string& filepath) :
 {
     cout << "MediaPlayer: Initializing..." << endl;
 
-    // 构造函数的职责是保证：要么成功创建一个完整的对象，要么抛出异常并清理所有已分配的资源。
-    // 使用一个总的 try-catch 块来捕获任何初始化阶段的失败。
+    // 构造函数保证：要么成功创建一个完整的对象，要么抛出异常并清理所有已分配的资源。
+    // 使用一个总 try-catch 块来捕获任何初始化阶段的失败。
     try {
+        // 创建调试数据对象
+        m_debugStats = std::make_shared<PlayerDebugStats>();
+        // 播放器缓冲
+        setPlayerState(PlayerState::BUFFERING);
+        // 启动组件和线程
         init_components(filepath);
         cout << "MediaPlayer: Initialized successfully. All threads started." << endl;
     }
@@ -416,7 +421,7 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
                     // 清空旧数据
                     resync_after_pause();
                     // 必须重新缓冲以填满 jitter buffer (PacketQueue)
-                    m_playerState.store(PlayerState::BUFFERING);
+                    setPlayerState(PlayerState::BUFFERING);
                     cout << "MediaPlayer: Switched to BUFFERING state to refill buffers after pause." << endl;
                 }
                 else {
@@ -428,7 +433,7 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
                     if (m_clockManager) m_clockManager->resume();
 
                     // 直接切回播放状态 (消费者线程会立即读到队列里的现存数据)
-                    m_playerState.store(PlayerState::PLAYING);
+                    setPlayerState(PlayerState::PLAYING);
                 }
 
                 // 唤醒所有等待线程
@@ -445,7 +450,7 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
                 }
                 
                 // 切换状态
-                m_playerState.store(PlayerState::PAUSED);
+                setPlayerState(PlayerState::PAUSED);
                 
                 // 不需要notify，其他线程会在下一次循环检查条件时自动阻塞
             }
@@ -1259,7 +1264,7 @@ int MediaPlayer::control_thread_func() {
                 }
 
                 // 2. 切换到播放状态
-                m_playerState.store(PlayerState::PLAYING);
+                setPlayerState(PlayerState::PLAYING);
 
                 // 3. 唤醒解码和渲染线程开始工作
                 m_state_cond.notify_all();
@@ -1271,7 +1276,7 @@ int MediaPlayer::control_thread_func() {
             if (current_buffer_sec < REBUFFER_THRESHOLD_SEC && !m_demuxer_eof.load())
             {
                 cout << "MediaPlayer ControlThread: Buffer running low. Switching to BUFFERING." << endl;
-                m_playerState.store(PlayerState::BUFFERING);
+                setPlayerState(PlayerState::BUFFERING);
                 // 不需要 notify，其他线程在下一次循环中会检测到新状态并自动等待
             }
             break;
@@ -1284,4 +1289,12 @@ int MediaPlayer::control_thread_func() {
         }
     }
     return 0;
+}
+
+void MediaPlayer::setPlayerState(PlayerState newState) {
+    m_playerState.store(newState);
+    if (m_debugStats) {
+        // 将 enum 强转为 int 存入调试信息
+        m_debugStats->current_state.store(static_cast<int>(newState));
+    }
 }
