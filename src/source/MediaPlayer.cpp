@@ -1220,11 +1220,20 @@ int MediaPlayer::control_thread_func() {
 
         // 定时同步时钟源状态到调试信息
         if (m_clockManager && m_debugStats) {
-            // 获取当前时钟类型
-            MasterClockType type = m_clockManager->getMasterClockType();
+            int display_clock_type = 0;
 
-            // 强转为 int 并原子写入 DebugStats
-            m_debugStats->clock_source_type = static_cast<int>(type);
+            // 优先检查是否处于“未知/同步中”状态
+            if (m_clockManager->isClockUnknown()) {
+                display_clock_type = -1; // 约定 -1 为未知状态
+            }
+            else {
+                // 如果时钟已就绪，则获取实际配置的类型
+                MasterClockType type = m_clockManager->getMasterClockType();
+                display_clock_type = static_cast<int>(type);
+            }
+
+            // 原子写入 DebugStats
+            m_debugStats->clock_source_type = display_clock_type;
         }
 
         // 获取当前主PacketQueue的缓冲时长（秒）

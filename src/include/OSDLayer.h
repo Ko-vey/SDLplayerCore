@@ -15,6 +15,16 @@ private:
     const int FONT_SIZE = 16;
     const int LINE_HEIGHT = 20;
 
+private:
+    // 将时钟类型转换为字符串
+    std::string getClockSourceName(int type) const {
+        switch (type) {
+        case -1: return "Unknown (Syncing...)";
+        case 0:  return "Audio Master"; // MasterClockType::AUDIO
+        case 1:  return "External (System)"; // MasterClockType::EXTERNAL
+        default: return "Invalid";
+        }
+    }
 public:
     OSDLayer() = default;
     ~OSDLayer() { 
@@ -76,16 +86,30 @@ public:
         oss.str(""); oss.clear();
 
         // --- A-V Sync ---
-        oss << "A-V Diff: " << std::fixed << std::setprecision(1) << stats.av_diff_ms.load() << " ms "
-            << "(VPts:" << std::setprecision(2) << stats.video_current_pts.load()
-            << " - Clock:" << stats.master_clock_val.load() << ")";
+        // 预先加载原子变量
+        int clockSrcType = stats.clock_source_type.load();
+        double masterTime = stats.master_clock_val.load();
+        double videoPts = stats.video_current_pts.load();
+        double avDiff = stats.av_diff_ms.load();
+
+        // Clock Status (时钟源与当前时间) 
+        oss << "Clock: " << getClockSourceName(clockSrcType);
+        // 只有在时钟已同步(非-1)时，且取到的时间确实是有效数字时才显示主时钟时间
+        if (clockSrcType != -1 && !std::isnan(masterTime)) {
+            oss << " | T: " << std::fixed << std::setprecision(2) << masterTime << "s";
+        }
         lines.push_back(oss.str());
         oss.str(""); oss.clear();
 
-        // --- Clock Source ---
-        int src = stats.clock_source_type.load();
-        std::string srcStr = (src == 0) ? "Audio" : (src == 1 ? "External" : "Video");
-        oss << "Clock Source: " << srcStr;
+        // A-V Sync (同步差值与视频PTS)
+        // 如果处于 Syncing 状态，Diff 数据可能巨大或为 0，隐藏并显示占位符
+        if (clockSrcType == -1) {
+            oss << "Sync: --";
+        }
+        else {
+            oss << "Sync: " << std::fixed << std::setprecision(1) << avDiff << " ms"
+                << " (V-PTS: " << std::setprecision(2) << videoPts << ")";
+        }
         lines.push_back(oss.str());
         oss.str(""); oss.clear();
 
