@@ -174,7 +174,8 @@ double ClockManager::getAudioClockTime_nolock() {
 
 void ClockManager::setClockToUnknown() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    // 使用 NAN (Not A Number) 标记未知状态
+
+    // 标记时间戳为无效
     m_video_clock_time = std::nan("");
     m_audio_clock_time = std::nan("");
     // 保持 paused 状态，直到 resume 被调用且第一帧到来
@@ -183,13 +184,24 @@ void ClockManager::setClockToUnknown() {
 
 bool ClockManager::isClockUnknown() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    // 检查当前的主时钟是否为 NAN
+
     if (m_master_clock_type == MasterClockType::AUDIO) {
+        // 音频主导：只看音频时钟
         return std::isnan(m_audio_clock_time);
     }
-    else {
-        return std::isnan(m_video_clock_time);
+    else if (m_master_clock_type == MasterClockType::EXTERNAL) {
+        // 外部时钟：
+        // 1. 如果有视频流，通常以视频帧的第一帧来校准外部时钟，所以检查视频时间
+        if (m_has_video_stream) {
+            return std::isnan(m_video_clock_time);
+        }
+        // 2. 如果是纯音频，则以音频包来校准，检查音频时间
+        else {
+            return std::isnan(m_audio_clock_time);
+        }
     }
+
+    return false;
 }
 
 void ClockManager::pause() {
@@ -233,13 +245,15 @@ void ClockManager::syncToPts(double pts) {
 
     std::cout << "ClockManager: Syncing to PTS: " << pts << "s" << std::endl;
 
-    // 1. 如果是音频主时钟，且音频流存在，直接更新音频时钟值
+    // 更新音频时钟
     if (m_has_audio_stream) {
         m_audio_clock_time = pts;
     }
 
-    // 2. 更新视频时钟值
-    m_video_clock_time = pts;
+    // 更新视频时钟
+    if (m_has_video_stream) {
+        m_video_clock_time = pts;
+    }
 
     // 3. 校准外部时钟的基准时间
     // 确保无论当前主时钟是 Audio 还是 External，基准都已经对齐
