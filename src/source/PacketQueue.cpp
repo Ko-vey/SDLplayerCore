@@ -58,8 +58,7 @@ bool PacketQueue::push(AVPacket* packet, int serial) {
 	}
 
 	// 检查队列是否已满
-	bool is_full = (max_size > 0 && queue.size() >= max_size) ||
-		(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts);
+	bool is_full = (max_size > 0 && queue.size() >= max_size);
 
 	if (is_full) {
 		if (m_block_on_full) {
@@ -67,8 +66,7 @@ bool PacketQueue::push(AVPacket* packet, int serial) {
 			while (is_full && !m_abort_request.load()) {
 				cond_producer.wait(lock);
 				// 唤醒后重新检查状态
-				is_full = (max_size > 0 && queue.size() >= max_size) ||
-					(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts);
+				is_full = (max_size > 0 && queue.size() >= max_size);
 			}
 			if (m_abort_request.load()) {
 				av_packet_free(&pkt_clone);
@@ -77,15 +75,13 @@ bool PacketQueue::push(AVPacket* packet, int serial) {
 		}
 		else {
 			// 【直播模式】丢弃旧包
-			while ((max_size > 0 && queue.size() >= max_size) ||
-				(max_duration_ts > 0 && (m_total_duration_ts + pkt_clone->duration) >= max_duration_ts))
+			while ((max_size > 0 && queue.size() >= max_size))
 			{
 				if (queue.empty()) break;
 				// 丢包
 				PacketData old_data = queue.front();
 				queue.pop();
 				// 更新统计数据
-				m_total_duration_ts -= old_data.pkt->duration;
 				m_total_bytes -= old_data.pkt->size;
 				av_packet_free(&old_data.pkt);
 				// cout << "Drop packet for live stream latency control" << endl;
@@ -95,7 +91,6 @@ bool PacketQueue::push(AVPacket* packet, int serial) {
 
 	// 将新包入队并更新统计
 	queue.push({ pkt_clone, serial });
-	m_total_duration_ts += pkt_clone->duration;
 	m_total_bytes += pkt_clone->size;
 
 	lock.unlock();
@@ -137,7 +132,6 @@ bool PacketQueue::pop(AVPacket* packet, int& serial, int timeout_ms) {
 	queue.pop();
 
 	// 同步更新统计数据
-	m_total_duration_ts -= src_data.pkt->duration;
 	m_total_bytes -= src_data.pkt->size;
 
 	lock.unlock();
@@ -170,7 +164,29 @@ size_t PacketQueue::size() const {
 
 int64_t PacketQueue::getTotalDuration() const {
 	std::lock_guard<std::mutex> lock(mutex);
-	return m_total_duration_ts;
+
+	if (queue.empty()) {
+		return 0;
+	}
+
+	// 获取队首和队尾
+	const PacketData& first = queue.front();
+	const PacketData& last = queue.back();
+
+	// 检查 PTS 有效性 (AV_NOPTS_VALUE)
+	if (first.pkt->pts == AV_NOPTS_VALUE || last.pkt->pts == AV_NOPTS_VALUE) {
+		// 如果无法获取有效 PTS，返回 0
+		return 0;
+	}
+
+	int64_t duration = last.pkt->pts - first.pkt->pts;
+
+	// 处理 PTS 回绕 (Wrap-around) 或 乱序导致的负值
+	if (duration < 0) {
+		return 0;
+	}
+
+	return duration;
 }
 
 size_t PacketQueue::getTotalBytes() const {
@@ -186,7 +202,6 @@ void PacketQueue::clear() {
 		av_packet_free(&data.pkt);
 	}
 	// 重置统计数据
-	m_total_duration_ts = 0;
 	m_total_bytes = 0;
 
 	// 重置状态标志，使其可以重新接收数据

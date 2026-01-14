@@ -50,7 +50,6 @@ private:
 	std::atomic<bool> m_abort_request{ false }; // 强制中断标志
 	
 	// 统计相关
-	int64_t m_total_duration_ts = 0; // 队列中所有packet的总时长 (以AVStream->time_base为单位)
 	size_t m_total_bytes = 0;        // 队列中所有packet的总字节数
 
 	// 时长限制
