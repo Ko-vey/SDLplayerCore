@@ -1215,8 +1215,7 @@ int MediaPlayer::control_thread_func() {
     }
 
     while (!m_quit) {
-        // 每 150ms 检查一次状态
-        SDL_Delay(150);
+        SDL_Delay(100);
 
         // 定时同步时钟源状态到调试信息
         if (m_clockManager && m_debugStats) {
@@ -1251,42 +1250,54 @@ int MediaPlayer::control_thread_func() {
             }
         }
 
+        // 获取队列包数量（作为时间戳不可靠时的保险）
+        int video_pkt_count = m_videoPacketQueue ? m_videoPacketQueue->size() : 0;
+        int audio_pkt_count = m_audioPacketQueue ? m_audioPacketQueue->size() : 0;
+
         PlayerState current_state = m_playerState.load();
+        bool is_live_stream = m_demuxer && m_demuxer->isLiveStream();
 
         // --- 决策逻辑 ---
         switch (current_state) {
         case PlayerState::BUFFERING:
         {
-            // 检查是否 解复用已结束 且 包队列已空（适用于文件太短无法达到缓冲阈值的情况）
-            bool demux_finished_and_queues_empty = m_demuxer_eof.load() &&
-                (!m_videoPacketQueue || m_videoPacketQueue->size() == 0) &&
-                (!m_audioPacketQueue || m_audioPacketQueue->size() == 0);
+            bool demux_finished = m_demuxer_eof.load();
 
-            // 如果缓冲时长达到“高水位线”，或者流已结束，则切换到播放状态
-            if (current_buffer_sec >= PLAYOUT_THRESHOLD_SEC || demux_finished_and_queues_empty)
-            {
-                cout << "MediaPlayer ControlThread: Buffering complete. Switching to PLAYING." << endl;
+            bool should_play = false;
 
-                // 1. 恢复时钟。此时是播放开始的精确时刻。
-                if (m_clockManager) {
-                    m_clockManager->resume();
+            if (is_live_stream) {
+                // 【直播 策略】
+                // 只要有一定数量的包（例如 5 个视频包）就立即播放，降低延迟
+                // 或者缓冲时间极短（例如 > 0.1秒）
+                if (video_pkt_count > 5 || current_buffer_sec > 0.1) {
+                    cout << "MediaPlayer: LIVE stream buffered enough (" << video_pkt_count << " pkts). Playing." << endl;
+                    should_play = true;
                 }
+            }
+            else {
+                // 【本地文件 策略】2.0秒缓存 或 队列满
+                if (current_buffer_sec >= PLAYOUT_THRESHOLD_SEC || demux_finished) {
+                    cout << "MediaPlayer: Local file buffered " << current_buffer_sec << "s. Playing." << endl;
+                    should_play = true;
+                }
+            }
 
-                // 2. 切换到播放状态
+            if (should_play) {
+                if (m_clockManager) m_clockManager->resume();
                 setPlayerState(PlayerState::PLAYING);
-
-                // 3. 唤醒解码和渲染线程开始工作
                 m_state_cond.notify_all();
             }
             break;
         }
         case PlayerState::PLAYING:
-            // 如果缓冲时长低于“低水位线”，并且数据流还未结束，则切换回缓冲状态
-            if (current_buffer_sec < REBUFFER_THRESHOLD_SEC && !m_demuxer_eof.load())
+            //【针对直播流的防抖动策略】
             {
-                cout << "MediaPlayer ControlThread: Buffer running low. Switching to BUFFERING." << endl;
-                setPlayerState(PlayerState::BUFFERING);
-                // 不需要 notify，其他线程在下一次循环中会检测到新状态并自动等待
+                bool is_empty = (videoStreamIndex != -1 && video_pkt_count == 0);
+                // 仅当完全没数据且流未结束时，才进入缓冲
+                if (is_empty && !m_demuxer_eof.load()) {
+                    cout << "MediaPlayer: Queue empty. Re-buffering." << endl;
+                    setPlayerState(PlayerState::BUFFERING);
+                }
             }
             break;
 

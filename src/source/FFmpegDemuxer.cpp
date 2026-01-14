@@ -68,6 +68,7 @@ bool FFmpegDemuxer::open(const char* url) {
 	av_dict_set(&opts, "rtsp_transport", "tcp", 0);
 	// 2. 设置超时时间（单位：微秒）。此处设置5秒超时，防止网络卡顿时程序假死。
 	av_dict_set(&opts, "stimeout", "5000000", 0);
+	av_dict_set(&opts, "buffer_size", "1024000", 0); // 增加底层接收缓冲
 	
 	// 打开输入流，并传入刚刚设置的选项
 	int ret = avformat_open_input(&pFormatCtx, url, nullptr, &opts);
