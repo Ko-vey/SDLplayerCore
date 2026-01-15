@@ -43,6 +43,7 @@ MediaPlayer::MediaPlayer(const string& filepath) :
     frame_cnt(0),
     m_seek_serial(0),
     m_debugStats(nullptr),
+    m_wait_for_keyframe(true),
     m_videoPacketQueue(nullptr),
     m_videoFrameQueue(nullptr),
     m_audioPacketQueue(nullptr),
@@ -537,6 +538,9 @@ void MediaPlayer::resync_after_pause() {
     // 刷新解码器 (清空 ffmpeg 内部缓存)
     if (m_videoDecoder) m_videoDecoder->flush();
     if (m_audioDecoder) m_audioDecoder->flush();
+    
+    // 恢复播放后，必须等待第一个关键帧才开始解码
+    m_wait_for_keyframe = true;
 
     // 特殊处理
     bool isLive = m_demuxer && m_demuxer->isLiveStream();
@@ -548,7 +552,7 @@ void MediaPlayer::resync_after_pause() {
     }
 
     m_demuxer_eof = false; // 重置解复用器EOF标志
-    cout << "MediaPlayer: Resync complete." << endl;
+    cout << "MediaPlayer: Resync complete. Waiting for Keyframe." << endl;
 }
 
 void MediaPlayer::cleanup_ffmpeg_resources() {
@@ -822,7 +826,32 @@ int MediaPlayer::video_decode_thread_entry(void* opaque) {
     return static_cast<MediaPlayer*>(opaque)->video_decode_func();
 }
 
-// 解码线程在 BUFFERING 和 PAUSED 状态下都应暂停
+// 辅助函数：判断 H.264 Packet 是否包含 IDR 帧
+bool is_idr_frame(AVPacket* pkt) {
+    if (!pkt || pkt->size < 5) return false;
+
+    // 对于 H.264，需要遍历 NALU
+    // 简单的基本方法：寻找 NALU Header (0x000001 或 0x00000001)
+    // 然后检查 NAL Type (后 5 bits)
+    uint8_t* data = pkt->data;
+    int size = pkt->size;
+
+    for (int i = 0; i < size - 4; i++) {
+        if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1) {
+            uint8_t nal_type = data[i + 3] & 0x1F;
+            if (nal_type == 5) return true; // 5 是 IDR 帧
+        }
+        else if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0 && data[i + 3] == 1) {
+            uint8_t nal_type = data[i + 4] & 0x1F;
+            if (nal_type == 5) return true; // 5 是 IDR 帧
+        }
+    }
+
+    // 如果是 H.265 (HEVC)，IDR 类型通常是 19 或 20
+    // 如果流包含多种编码，使用下面妥协的“万能方案”
+    return (pkt->flags & AV_PKT_FLAG_KEY);
+}
+
 int MediaPlayer::video_decode_func() {
     cout << "MediaPlayer: Video decode thread started." << endl;
     if (!m_videoDecoder || !m_videoPacketQueue || !m_videoFrameQueue || !m_debugStats) {
@@ -843,10 +872,13 @@ int MediaPlayer::video_decode_func() {
         // 状态等待逻辑
         {
             std::unique_lock<std::mutex> lock(m_state_mutex);
-            m_state_cond.wait(lock, [this] { 
-                return m_playerState == PlayerState::PLAYING || m_quit;
+            m_state_cond.wait(lock, [this] {
+                return m_playerState == PlayerState::PLAYING ||
+                    m_playerState == PlayerState::BUFFERING ||
+                    m_quit;
                 });
         }
+
         if (m_quit) break;
 
         if (!m_videoPacketQueue->pop(m_decodingVideoPacket, pkt_serial, -1)) {
@@ -886,8 +918,8 @@ int MediaPlayer::video_decode_func() {
             else {
                 // abort()，直接退出
                 cout << "MediaPlayer VideoDecodeThread: Packet queue aborted, exiting loop." << endl;
+                break;
             }
-            break; // 退出主循环
         }
 
         // 序列号检查
@@ -897,12 +929,27 @@ int MediaPlayer::video_decode_func() {
             av_packet_unref(m_decodingVideoPacket);
             continue; // 直接进行下一次循环
         }
+        
+        // 关键帧检查
+        if (m_wait_for_keyframe) {
+            // 检查该包是否包含关键帧IDR的标志
+            if (!(m_decodingVideoPacket->flags & AV_PKT_FLAG_KEY) || !is_idr_frame(m_decodingVideoPacket)) {
+                // 直接丢弃，防止花屏
+                av_packet_unref(m_decodingVideoPacket);
+                continue; // 跳过解码，取下个包
+            }
+            else {
+                // 等到了关键帧(IDR)
+                cout << "MediaPlayer VideoDecodeThread: REAL IDR Keyframe found! Resuming decode." << endl;
+                m_wait_for_keyframe = false;
+            }
+        }
 
         int decode_ret = m_videoDecoder->decode(m_decodingVideoPacket, &decoded_frame);
         av_packet_unref(m_decodingVideoPacket);
 
         if (decode_ret == 0 && decoded_frame) {
-            // 更新解码帧率
+            // 统计信息-更新解码帧率
             if (m_debugStats) {
                 m_debugStats->decode_fps.tick();
                 // 更新视频队列信息

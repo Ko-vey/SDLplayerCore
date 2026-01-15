@@ -89,6 +89,7 @@ private:
     int frame_cnt;         // 帧计数器
     std::atomic<int> m_seek_serial; // 全局序列号，用于播放"代际"隔离
     std::shared_ptr<PlayerDebugStats> m_debugStats; // 调试信息
+    std::atomic<bool> m_wait_for_keyframe; // 标志-是否丢弃非关键帧
 
     // 内部组件
     std::unique_ptr<PacketQueue> m_videoPacketQueue;
