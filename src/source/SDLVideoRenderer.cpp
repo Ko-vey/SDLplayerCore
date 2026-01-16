@@ -194,15 +194,27 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
         m_debug_stats->clock_source_type = static_cast<int>(m_clock_manager->getMasterClockType());
     }
 
-    // --- 根据延时进行同步决策 ---
-    const double AV_NOSYNC_THRESHOLD = 10.0;   // 非同步（重置）阈值 (10s)
-    // 检查延时是否过大，过大则认为时钟不同步，重置延时
-    if (delay > AV_NOSYNC_THRESHOLD || delay < -AV_NOSYNC_THRESHOLD) {
-        // 时钟差距过大，可能出错了，重置时钟
-        std::cout << "VideoRenderer: Clock difference is too large (" << delay << "s), resetting delay." << std::endl;
-        // 如果差异过大，再次触发 syncToPts
-        m_clock_manager->syncToPts(pts); // 自动修复严重的时间轴偏差
-        return 0.0;
+    // 默认阈值 10秒 (如本地文件，允许较大的 Seek 误差)
+    double sync_threshold = 10.0;
+
+    // 检查时钟源类型
+    // 如果是 EXTERNAL（实时性优先），将阈值收紧
+    MasterClockType clockType = m_clock_manager->getMasterClockType();
+    if (clockType == MasterClockType::EXTERNAL) {
+        sync_threshold = 1.0;
+    }
+
+    // 检查延时是否过大 (正向或负向)
+    // 绝对值判断：无论是落后太多还是超前太多
+    if (std::abs(delay) > sync_threshold) {
+        std::cout << "VideoRenderer: Clock diff too large (" << delay
+            << "s > threshold " << sync_threshold << "s). Resyncing." << std::endl;
+
+        // 强制将主时钟拉回当前帧的时间，消除时间差
+        // 避免暂停后画面卡顿、慢放或快进
+        m_clock_manager->syncToPts(pts);
+
+        return 0.0; // 立即渲染
     }
 
     // 视频严重落后，请求丢帧

@@ -58,6 +58,12 @@ public:
 	virtual int readPacket(AVPacket* packet) = 0;
 
 	/**
+	 * @brief 清空 IO 缓冲区
+	 * 用于在直播流暂停恢复后，尽可能清除积压的旧数据
+	 */
+	virtual void flushIO() = 0;
+
+	/**
 	 * @brief 获取底层的 AVFormatContext（用于获取更详细信息）
 	 * 注意：通常应谨慎暴露底层上下文，但有时有必要与其它FFmpeg组件交互
 	 * @return 指向 AVFormatContext 的指针。若未打开则为 nullptr

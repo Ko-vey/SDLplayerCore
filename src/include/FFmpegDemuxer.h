@@ -51,6 +51,7 @@ public:
 	void close() override;
 	int seek(double timestamp_sec) override;
 	int readPacket(AVPacket* packet) override;
+	void flushIO() override;
 	AVFormatContext* getFormatContext() const override;
 	int findStream(AVMediaType type) const override;
 	AVCodecParameters* getCodecParameters(int streamIndex) const override;

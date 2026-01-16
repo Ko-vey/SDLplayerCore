@@ -254,3 +254,11 @@ AVRational FFmpegDemuxer::getTimeBase(int streamIndex) const {
 bool FFmpegDemuxer::isLiveStream() const {
 	return m_isLiveStream; 
 }
+
+void FFmpegDemuxer::flushIO() {
+	if (pFormatCtx && pFormatCtx->pb) {
+		// 强制刷新缓冲数据
+		// 能清空 FFmpeg 在应用层维护的 IO 缓冲区。
+		avio_flush(pFormatCtx->pb);
+	}
+}

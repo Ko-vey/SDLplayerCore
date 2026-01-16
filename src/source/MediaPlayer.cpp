@@ -538,6 +538,11 @@ void MediaPlayer::resync_after_pause() {
     // 刷新解码器 (清空 ffmpeg 内部缓存)
     if (m_videoDecoder) m_videoDecoder->flush();
     if (m_audioDecoder) m_audioDecoder->flush();
+
+    // 清空解复用器的内部 IO 缓冲区
+    if (m_demuxer) {
+        m_demuxer->flushIO();
+    }
     
     // 恢复播放后，必须等待第一个关键帧才开始解码
     m_wait_for_keyframe = true;
