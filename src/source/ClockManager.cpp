@@ -22,19 +22,7 @@
 #include <iostream>
 #include <cassert>
 
-ClockManager::ClockManager() :
-    m_video_clock_time(0.0),
-    m_audio_clock_time(0.0),
-    m_start_time(0),
-    m_paused_at(0),
-    m_paused(true), // 构造时默认暂停，防止未初始化时钟乱跑
-    m_master_clock_type(MasterClockType::AUDIO),
-    m_audio_device_id(0),
-    m_audio_bytes_per_second(0),
-    m_has_audio_stream(false),
-    m_has_video_stream(false) 
-{
-}
+ClockManager::ClockManager() {}
 
 void ClockManager::init(bool has_audio, bool has_video) {
     // init 内部调用 reset，会将状态置为 paused

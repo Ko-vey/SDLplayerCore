@@ -29,7 +29,7 @@ extern "C" {
 
 using namespace std;
 
-FFmpegVideoDecoder::FFmpegVideoDecoder() : m_codecContext(nullptr) {}
+FFmpegVideoDecoder::FFmpegVideoDecoder() {}
 
 FFmpegVideoDecoder::~FFmpegVideoDecoder() {
 	close();

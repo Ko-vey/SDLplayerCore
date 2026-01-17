@@ -21,6 +21,8 @@
 #include "../include/PacketQueue.h"
 #include <iostream>
 
+using namespace std;
+
 PacketQueue::PacketQueue(size_t max_packet_count, int64_t max_duration_in_ts, bool block_on_full)
 	: max_size(max_packet_count), 
 	max_duration_ts(max_duration_in_ts),

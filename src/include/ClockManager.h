@@ -67,17 +67,17 @@ private:
 private:
     mutable std::mutex m_mutex;
 
-    double m_video_clock_time;
-    double m_audio_clock_time;
+    double m_video_clock_time = 0.0;
+    double m_audio_clock_time = 0.0;
 
-    Uint64 m_start_time;
-    Uint64 m_paused_at;
+    Uint64 m_start_time = 0;
+    Uint64 m_paused_at = 0;
 
-    bool m_paused;
-    MasterClockType m_master_clock_type;
+    bool m_paused = true;
+    MasterClockType m_master_clock_type = MasterClockType::AUDIO;
 
-    SDL_AudioDeviceID m_audio_device_id;
-    int m_audio_bytes_per_second;
-    bool m_has_audio_stream;
-    bool m_has_video_stream;
+    SDL_AudioDeviceID m_audio_device_id = 0;
+    int m_audio_bytes_per_second = 0;
+    bool m_has_audio_stream = false;
+    bool m_has_video_stream = false;
 };

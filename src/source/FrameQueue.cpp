@@ -21,6 +21,8 @@
 #include "../include/FrameQueue.h"
 #include <iostream>
 
+using namespace std;
+
 FrameQueue::FrameQueue(size_t max_queue_size):max_size(max_queue_size) {}
 
 FrameQueue::~FrameQueue() { 

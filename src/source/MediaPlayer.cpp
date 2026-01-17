@@ -34,37 +34,7 @@
 using namespace std;
 
 // 初始化所有组件并启动工作线程，失败时抛出 std::runtime_error
-MediaPlayer::MediaPlayer(const string& filepath) :
-    m_quit(false),
-    m_playerState(PlayerState::IDLE),
-    m_demuxer_eof(false),
-    videoStreamIndex(-1),
-    audioStreamIndex(-1),
-    frame_cnt(0),
-    m_seek_serial(0),
-    m_debugStats(nullptr),
-    m_wait_for_keyframe(true),
-    m_videoPacketQueue(nullptr),
-    m_videoFrameQueue(nullptr),
-    m_audioPacketQueue(nullptr),
-    m_audioFrameQueue(nullptr),
-    m_decodingVideoPacket(nullptr),
-    m_renderingVideoFrame(nullptr),
-    m_decodingAudioPacket(nullptr),
-    m_renderingAudioFrame(nullptr),
-    m_demuxer(nullptr),
-    m_videoDecoder(nullptr),
-    m_audioDecoder(nullptr),
-    m_videoRenderer(nullptr),
-    m_audioRenderer(nullptr),
-    m_clockManager(nullptr),
-    m_demuxThread(nullptr),
-    m_videoDecodeThread(nullptr),
-    m_videoRenderthread(nullptr),
-    m_audioDecodeThread(nullptr),
-    m_audioRenderThread(nullptr),
-    m_controlThread(nullptr)
-{
+MediaPlayer::MediaPlayer(const string& filepath) {
     cout << "MediaPlayer: Initializing..." << endl;
 
     // 构造函数保证：要么成功创建一个完整的对象，要么抛出异常并清理所有已分配的资源。

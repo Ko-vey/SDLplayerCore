@@ -30,14 +30,12 @@ extern "C" {
 #include <libavcodec/avcodec.h> // AVPacket & AVFrame
 }
 
-using namespace std;
-
 class PacketQueue {
 private:
 	// 内部数据存储结构
 	struct PacketData {
-		AVPacket* pkt;
-		int serial;
+		AVPacket* pkt = nullptr;
+		int serial = -1;
 	};
 
 	std::queue<PacketData> queue;

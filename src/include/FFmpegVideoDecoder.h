@@ -44,5 +44,5 @@ public:
 	AVRational getFrameRate() const override;
 
 private:
-	AVCodecContext* m_codecContext;
+	AVCodecContext* m_codecContext = nullptr;
 };

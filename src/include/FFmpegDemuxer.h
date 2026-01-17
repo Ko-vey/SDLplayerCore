@@ -24,8 +24,6 @@
 #include <string>
 #include <atomic>
 
-using namespace std;
-
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>	// AVCodecParameters, AVMediaType
@@ -36,10 +34,10 @@ extern "C" {
 class FFmpegDemuxer : public IDemuxer {
 private:
 	AVFormatContext* pFormatCtx = nullptr;
-	string m_url;
+	std::string m_url;
 	int m_videoStreamIndex = -1;
 	int m_audioStreamIndex = -1;
-	std::atomic<bool> m_abort_request = false; // 中断请求标志
+	std::atomic<bool> m_abort_request{ false }; // 中断请求标志
 	bool m_isLiveStream = false;
 
 public:

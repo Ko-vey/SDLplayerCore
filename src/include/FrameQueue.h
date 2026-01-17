@@ -30,8 +30,6 @@ extern "C" {
 #include <libavcodec/avcodec.h> // AVPacket & AVFrame
 }
 
-using namespace std;
-
 class FrameQueue {
 private:
 	std::queue<AVFrame*> queue;

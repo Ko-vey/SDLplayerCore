@@ -45,8 +45,6 @@ struct SwsContext;
 
 #include "PlayerDebugStats.h" // 调试信息组件
 
-using namespace std;
-
 #define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
 #define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
@@ -75,21 +73,21 @@ public:
 
 private:
     // 内部状态标志
-    std::atomic<bool> m_quit;   // 退出标志
-    std::atomic<PlayerState> m_playerState;  // 播放器核心状态
-    std::atomic<bool> m_demuxer_eof; // 解复用器EOF标志
+    std::atomic<bool> m_quit{ false };   // 退出标志
+    std::atomic<PlayerState> m_playerState{ PlayerState::IDLE };  // 播放器核心状态
+    std::atomic<bool> m_demuxer_eof{ false }; // 解复用器EOF标志
     std::mutex m_state_mutex;   // 用于保护状态转换和相关条件的互斥锁
     std::condition_variable m_state_cond;    // 用于唤醒因状态变化而等待的线程
 
     // 内部状态变量
-    int videoStreamIndex;  // 解复用器找到的视频流索引
-    int audioStreamIndex;  // 音频流索引
+    int videoStreamIndex = -1;  // 解复用器找到的视频流索引
+    int audioStreamIndex = -1;  // 音频流索引
 
     // 其他变量
-    int frame_cnt;         // 帧计数器
-    std::atomic<int> m_seek_serial; // 全局序列号，用于播放"代际"隔离
+    int frame_cnt = 0;         // 帧计数器
+    std::atomic<int> m_seek_serial{ 0 }; // 全局序列号，用于播放"代际"隔离
     std::shared_ptr<PlayerDebugStats> m_debugStats; // 调试信息
-    std::atomic<bool> m_wait_for_keyframe; // 标志-是否丢弃非关键帧
+    std::atomic<bool> m_wait_for_keyframe{ true }; // 标志-是否丢弃非关键帧
 
     // 内部组件
     std::unique_ptr<PacketQueue> m_videoPacketQueue;
@@ -97,10 +95,10 @@ private:
     std::unique_ptr<FrameQueue> m_videoFrameQueue;
     std::unique_ptr<FrameQueue> m_audioFrameQueue;
 
-    AVPacket* m_decodingVideoPacket;
-    AVPacket* m_decodingAudioPacket;
-    AVFrame* m_renderingVideoFrame;
-    AVFrame* m_renderingAudioFrame;
+    AVPacket* m_decodingVideoPacket = nullptr;
+    AVPacket* m_decodingAudioPacket = nullptr;
+    AVFrame* m_renderingVideoFrame = nullptr;
+    AVFrame* m_renderingAudioFrame = nullptr;
 
     // 关系：MediaPlayer HAS-A IWorker
     std::unique_ptr<IDemuxer> m_demuxer;                // 解复用
@@ -111,12 +109,12 @@ private:
     std::unique_ptr<IClockManager> m_clockManager;      // 时钟管理
 
     // 内部线程句柄
-    SDL_Thread* m_demuxThread;        // 解复用
-    SDL_Thread* m_videoDecodeThread;  // 视频解码
-    SDL_Thread* m_audioDecodeThread;  // 音频解码
-    SDL_Thread* m_videoRenderthread;  // 视频渲染
-    SDL_Thread* m_audioRenderThread;  // 音频渲染
-    SDL_Thread* m_controlThread;      // 总控制
+    SDL_Thread* m_demuxThread = nullptr;        // 解复用
+    SDL_Thread* m_videoDecodeThread = nullptr;  // 视频解码
+    SDL_Thread* m_audioDecodeThread = nullptr;  // 音频解码
+    SDL_Thread* m_videoRenderthread = nullptr;  // 视频渲染
+    SDL_Thread* m_audioRenderThread = nullptr;  // 音频渲染
+    SDL_Thread* m_controlThread = nullptr;      // 总控制
 
     // --- 缓冲策略参数 (单位: 秒) ---
     // 当缓冲低于此值时，进入 BUFFERING 状态
@@ -125,7 +123,7 @@ private:
     static constexpr double PLAYOUT_THRESHOLD_SEC = 2.0;
 
 public:
-    MediaPlayer(const string& filepath);
+    MediaPlayer(const std::string& filepath);
     virtual ~MediaPlayer();
 
     MediaPlayer(const MediaPlayer& src) = delete;
@@ -155,9 +153,9 @@ private:
     int handle_event(const SDL_Event& event);
     void resync_after_pause();
     // 构造和初始化
-    void init_components(const string& filepath);
-    void init_ffmpeg_resources(const string& filepath);
-    int init_demuxer_and_decoders(const string& filepath);
+    void init_components(const std::string& filepath);
+    void init_ffmpeg_resources(const std::string& filepath);
+    int init_demuxer_and_decoders(const std::string& filepath);
     void init_sdl_video_renderer();
     void init_sdl_audio_renderer();
     void start_threads();
