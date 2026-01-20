@@ -24,7 +24,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/error.h>		// av_err2str
-//#include <libavutil/opt.h>		// 设置解码器选项（如线程数）
+#include <libavutil/opt.h>		// 设置解码器选项（如线程数）
 }
 
 using namespace std;
@@ -72,9 +72,9 @@ bool FFmpegVideoDecoder::init(AVCodecParameters* codecParams, AVRational timeBas
 	// 手动设置时间基
 	m_codecContext->time_base = timeBase;
 
-	// 启用多线程解码（具体线程数可以配置，0 为自动）
-	//m_codecContext->thread_count = 0;
-	//m_codecContext->thread_type = FF_THREAD_FRAME;	// 或者 FF_THREAD_SLICE
+	// 启用多线程解码
+	m_codecContext->thread_count = 0; // 0 表示自动检测 CPU 核心数
+	// m_codecContext->thread_type 保持默认（FFmpeg 会自动选择）
 
 	// 4、打开解码器
 	if (avcodec_open2(m_codecContext, codec, nullptr) < 0) {
@@ -183,4 +183,12 @@ AVRational FFmpegVideoDecoder::getFrameRate()const {
 		return m_codecContext->framerate;
 	}
 	return { 0,1 };	// 返回一个表示无效或未初始化的帧率
+}
+
+AVCodecID FFmpegVideoDecoder::getCodecID() const {
+	if (m_codecContext) {
+		return m_codecContext->codec_id;
+	}
+	// 如果还没初始化，返回空 ID
+	return AV_CODEC_ID_NONE;
 }

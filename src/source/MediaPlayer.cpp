@@ -33,6 +33,9 @@
 
 using namespace std;
 
+// 辅助函数，用于检测IDR关键帧
+bool is_idr_frame(const AVPacket* pkt, AVCodecID codec_id);
+
 // 初始化所有组件并启动工作线程，失败时抛出 std::runtime_error
 MediaPlayer::MediaPlayer(const string& filepath) {
     cout << "MediaPlayer: Initializing..." << endl;
@@ -142,6 +145,9 @@ void MediaPlayer::init_sdl_video_renderer() {
                                 m_videoDecoder->getPixelFormat(), m_clockManager.get())) {
             throw std::runtime_error("SDL Init Error: Failed to initialize SDL Video Renderer.");
         }
+        // 传递流类型给渲染器
+        bool isLive = m_demuxer && m_demuxer->isLiveStream();
+        sdl_renderer->setStreamType(isLive);
 
         // 设置同步所需的时钟参数
         AVStream* video_stream = m_demuxer->getFormatContext()->streams[videoStreamIndex];
@@ -283,7 +289,7 @@ int MediaPlayer::init_demuxer_and_decoders(const string& filepath) {
             m_videoPacketQueue = std::make_unique<PacketQueue>(150, 0, block_on_full);
         }
         else {
-            // 本地文件给大一点的缓冲(如10秒)，直播流给小一点(如2秒)
+            // 本地文件给大一点的缓冲，直播流给小一点
             double target_duration_sec = isLive ? 2.0 : 10.0;
             int64_t max_duration_ts = static_cast<int64_t>(target_duration_sec / av_q2d(time_base));
 
@@ -509,13 +515,24 @@ void MediaPlayer::resync_after_pause() {
     if (m_videoDecoder) m_videoDecoder->flush();
     if (m_audioDecoder) m_audioDecoder->flush();
 
+    // 刷新视频渲染器状态
+    if (m_videoRenderer) m_videoRenderer->flush();
+    
     // 清空解复用器的内部 IO 缓冲区
     if (m_demuxer) {
         m_demuxer->flushIO();
     }
     
-    // 恢复播放后，必须等待第一个关键帧才开始解码
-    m_wait_for_keyframe = true;
+    // 恢复播放后，等待第一个关键帧才开始解码
+    // 只有存在视频流时，才需要等待关键帧
+    if (videoStreamIndex >= 0) {
+        m_wait_for_keyframe = true;
+        cout << "MediaPlayer::Resync - Demuxer waiting for Video Keyframe." << endl;
+    }
+    else {
+        m_wait_for_keyframe = false;
+        cout << "MediaPlayer::Resync - Audio only mode." << endl;
+    }
 
     // 特殊处理
     bool isLive = m_demuxer && m_demuxer->isLiveStream();
@@ -527,7 +544,7 @@ void MediaPlayer::resync_after_pause() {
     }
 
     m_demuxer_eof = false; // 重置解复用器EOF标志
-    cout << "MediaPlayer: Resync complete. Waiting for Keyframe." << endl;
+    cout << "MediaPlayer: Resync complete." << endl;
 }
 
 void MediaPlayer::cleanup_ffmpeg_resources() {
@@ -760,9 +777,41 @@ int MediaPlayer::demux_thread_func() {
             break; // 退出解复用循环
         }
 
+        if (m_wait_for_keyframe) {
+            // 场景：刚启动或从暂停恢复，正在寻找第一个视频关键帧
+
+            // 1. 如果是视频流
+            if (demux_packet->stream_index == videoStreamIndex) {
+                // 检查是否为关键帧 (IDR)
+                if (is_idr_frame(demux_packet, m_videoDecoder->getCodecID())) {
+                    cout << "MediaPlayer DemuxerThread: Video IDR found! Aligning streams and starting playback." << endl;
+                    m_wait_for_keyframe = false;
+                    // 不丢包，让它往下走，进入队列
+                }
+                else {
+                    // 非关键帧，丢弃
+                    av_packet_unref(demux_packet);
+                    continue;
+                }
+            }
+            // 2. 如果是音频流
+            else if (audioStreamIndex >= 0 && demux_packet->stream_index == audioStreamIndex) {
+                // 在找到视频关键帧之前，音频也必须丢弃
+                // 否则音频会先跑，导致视频渲染器认为视频严重滞后或超前，引发等待和队列溢出
+                av_packet_unref(demux_packet);
+                continue;
+            }
+            // 3. 其他流，直接丢弃
+            else {
+                av_packet_unref(demux_packet);
+                continue;
+            }
+        }
+
         // 获取当前最新的序列号
         int current_serial = m_seek_serial.load();
 
+        // 分发逻辑
         if (demux_packet->stream_index == videoStreamIndex) {
             if (m_videoPacketQueue) {
                 m_videoPacketQueue->push(demux_packet, current_serial);
@@ -773,9 +822,6 @@ int MediaPlayer::demux_thread_func() {
                 m_audioPacketQueue->push(demux_packet, current_serial);
             }
         }
-        // else {
-            // 来自其他流的数据包，暂时忽略
-        // }
 
         // PacketQueue::push 会调用 av_packet_ref，因此这里读取的原始包需要 unref
         av_packet_unref(demux_packet);
@@ -801,29 +847,60 @@ int MediaPlayer::video_decode_thread_entry(void* opaque) {
     return static_cast<MediaPlayer*>(opaque)->video_decode_func();
 }
 
-// 辅助函数：判断 H.264 Packet 是否包含 IDR 帧
-bool is_idr_frame(AVPacket* pkt) {
+/**
+ * @brief 深度判断 AVPacket 是否包含真正的 IDR 关键帧
+ * 解决 H.264 非 IDR 的 I 帧导致的花屏问题
+ */
+bool is_idr_frame(const AVPacket* pkt, AVCodecID codec_id) {
     if (!pkt || pkt->size < 5) return false;
 
-    // 对于 H.264，需要遍历 NALU
-    // 简单的基本方法：寻找 NALU Header (0x000001 或 0x00000001)
-    // 然后检查 NAL Type (后 5 bits)
     uint8_t* data = pkt->data;
     int size = pkt->size;
+    bool found_any_start_code = false;
 
-    for (int i = 0; i < size - 4; i++) {
+    // 针对 Annex B 格式进行深度扫描 (常见于 RTSP)
+    for (int i = 0; i < size - 5; ++i) {
+        // 寻找起始码
+        int start_code_len = 0;
         if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1) {
-            uint8_t nal_type = data[i + 3] & 0x1F;
-            if (nal_type == 5) return true; // 5 是 IDR 帧
+            start_code_len = 3;
         }
-        else if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0 && data[i + 3] == 1) {
-            uint8_t nal_type = data[i + 4] & 0x1F;
-            if (nal_type == 5) return true; // 5 是 IDR 帧
+        else if (i < size - 4 && data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0 && data[i + 3] == 1) {
+            start_code_len = 4;
+        }
+
+        if (start_code_len > 0) {
+            found_any_start_code = true;
+            // NALU header
+            uint8_t header_pos = i + start_code_len;
+
+            if (codec_id == AV_CODEC_ID_H264) {
+                uint8_t nal_type = data[header_pos] & 0x1F; // 取8位中的后面5位
+                if (nal_type == 5) {
+                    return true; // H.264 IDR
+                }
+            }
+            else if (codec_id == AV_CODEC_ID_HEVC) {
+                // 去掉最后一位的 nuh_layer_id 并 取剩下7位的后面6位（去掉第一位的 forbidden_zero_bit）
+                uint8_t nal_type = (data[header_pos] >> 1) & 0x3F;
+                // H.265 IDR 帧类型为 19 (IDR_W_RADL) 或 20 (IDR_N_LP)
+                if (nal_type == 19 || nal_type == 20) {
+                    return true;
+                }
+            }
+
+            i += start_code_len; // 跳过起始码继续找下一个 NALU
         }
     }
 
-    // 如果是 H.265 (HEVC)，IDR 类型通常是 19 或 20
-    // 如果流包含多种编码，使用下面妥协的“万能方案”
+    // 如果是 Annex B 格式但扫描完都没发现 IDR，则严格返回 false
+    if (found_any_start_code) {
+        return false;
+    }
+
+    // 如果没发现起始码，可能是 AVCC/HVCC 格式（MP4 封装常用），
+    // 此时 NALU 头部在包的极开头（跳过长度字段）。
+    // 直接信任 FFmpeg 的标记；对于这类封装，FFmpeg 通常能准确标记 AV_PKT_FLAG_KEY
     return (pkt->flags & AV_PKT_FLAG_KEY);
 }
 
@@ -905,21 +982,6 @@ int MediaPlayer::video_decode_func() {
             continue; // 直接进行下一次循环
         }
         
-        // 关键帧检查
-        if (m_wait_for_keyframe) {
-            // 检查该包是否包含关键帧IDR的标志
-            if (!(m_decodingVideoPacket->flags & AV_PKT_FLAG_KEY) || !is_idr_frame(m_decodingVideoPacket)) {
-                // 直接丢弃，防止花屏
-                av_packet_unref(m_decodingVideoPacket);
-                continue; // 跳过解码，取下个包
-            }
-            else {
-                // 等到了关键帧(IDR)
-                cout << "MediaPlayer VideoDecodeThread: REAL IDR Keyframe found! Resuming decode." << endl;
-                m_wait_for_keyframe = false;
-            }
-        }
-
         int decode_ret = m_videoDecoder->decode(m_decodingVideoPacket, &decoded_frame);
         av_packet_unref(m_decodingVideoPacket);
 
@@ -1237,7 +1299,7 @@ int MediaPlayer::control_thread_func() {
     }
 
     while (!m_quit) {
-        SDL_Delay(100);
+        SDL_Delay(20);
 
         // 定时同步时钟源状态到调试信息
         if (m_clockManager && m_debugStats) {
@@ -1289,12 +1351,19 @@ int MediaPlayer::control_thread_func() {
 
             if (is_live_stream) {
                 // 【直播 策略】
-                // 只要有一定数量的包（例如 5 个视频包）就立即播放，降低延迟
-                // 或者缓冲时间极短（例如 > 0.1秒）
-                if (video_pkt_count > 5 || current_buffer_sec > 0.1) {
-                    cout << "MediaPlayer: LIVE stream buffered enough (" << video_pkt_count << " pkts). Playing." << endl;
+                // 必须积攒至少 0.5秒 数据 OR 25个包（约半秒视频）才开始播放
+                // 这会引入约 500ms 的起播/恢复延迟，但能保证播放的连续性
+                if (video_pkt_count > 25 || current_buffer_sec > 0.5) {
+                    cout << "MediaPlayer: LIVE stream video packet buffered enough (" << video_pkt_count
+                        << " pkts, " << current_buffer_sec << "s). Resuming." << endl;
                     should_play = true;
                 }
+                // 直播-纯音频处理逻辑-待补充
+                /*else if (audio_pkt_count > 50 || current_buffer_sec > 1.0) {
+                    cout << "MediaPlayer: LIVE stream audio packet buffered enough (" << audio_pkt_count
+                        << " pkts, " << current_buffer_sec << "s). Resuming." << endl;
+                    should_play = true;
+                }*/
             }
             else {
                 // 【本地文件 策略】2.0秒缓存 或 队列满
@@ -1314,10 +1383,14 @@ int MediaPlayer::control_thread_func() {
         case PlayerState::PLAYING:
             //【针对直播流的防抖动策略】
             {
+                // 只有当视频流存在，且队列真的空了，才进入缓冲
                 bool is_empty = (videoStreamIndex != -1 && video_pkt_count == 0);
+
                 // 仅当完全没数据且流未结束时，才进入缓冲
                 if (is_empty && !m_demuxer_eof.load()) {
                     cout << "MediaPlayer: Queue empty. Re-buffering." << endl;
+                    // 暂停时钟，防止缓冲期间时钟空转导致后续 Diff 巨大
+                    if (m_clockManager) m_clockManager->pause();
                     setPlayerState(PlayerState::BUFFERING);
                 }
             }

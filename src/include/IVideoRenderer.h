@@ -35,7 +35,7 @@ constexpr double DEFAULT_FRAME_DURATION = 0.04;
 constexpr double AV_SYNC_THRESHOLD_MIN = 0.04;
 
 // 同步阈值：视频落后超过此值，则触发丢帧决策
-constexpr double AV_SYNC_THRESHOLD_MAX = 0.1;
+constexpr double AV_SYNC_THRESHOLD_MAX = 0.4;
 
 // 同步信号：由 calculateSyncDelay 返回，请求调用者丢弃当前帧
 constexpr double SYNC_SIGNAL_DROP_FRAME = -1.0;
@@ -136,4 +136,15 @@ public:
 	 * @param stats 当前状态信息
 	 */
 	virtual void setDebugStats(std::shared_ptr<PlayerDebugStats> stats) = 0;
+
+	/**
+	 * @brief 设置是否为直播模式，用于调整同步策略
+	 * @param isLive 是否为直播流
+	 */
+	virtual void setStreamType(bool isLive) = 0;
+
+	/**
+	 * @brief 清空渲染器内部状态（如上一帧PTS、FirstFrame标记等）
+	 */
+	virtual void flush() = 0;
 };

@@ -58,9 +58,12 @@ private:
     std::string m_window_title;
     enum AVPixelFormat m_decoder_pixel_format;
     bool m_is_audio_only = false;   // 标记是否为纯音频模式
+    bool m_is_live_stream = false;  // 标记是否为直播流
 
     std::mutex m_mutex;                         // 用于保护对SDL资源的访问
     AVFrame* m_last_rendered_frame = nullptr;   // 保存最后一帧的副本，用于刷新和恢复
+    
+    bool m_first_frame_after_reset = true;      // 用于处理 Reset 后第一帧的特殊逻辑
 
     // 调试信息相关成员
     std::unique_ptr<OSDLayer> m_osd_layer;
@@ -88,6 +91,8 @@ public:
 
     void setDebugStats(std::shared_ptr<PlayerDebugStats> stats) override;
 
+    void setStreamType(bool isLive) override;
+
     // 渲染逻辑相关方法
     double calculateSyncDelay(AVFrame* frame) override;
     bool prepareFrameForDisplay(AVFrame* frame) override;
@@ -98,4 +103,6 @@ public:
 
     bool onWindowResize(int newWidth, int newHeight) override;
     void getWindowSize(int& width, int& height) const override;
+
+    void flush() override;
 };

@@ -163,6 +163,19 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
     // 更新视频时钟
     m_clock_manager->setVideoClock(pts);
 
+    // 处理 Reset 后的第一帧
+    // 如果是刚恢复播放的第一帧，无论 Delay 多少，都强制立即渲染
+    // (消除由于旧 PTS 残留导致的大数 Delay 误判)
+    if (m_first_frame_after_reset) {
+        m_first_frame_after_reset = false;
+        // 如果 Audio 已经跑了，syncToPts 可能无效(被 Audio 覆盖)，但至少应该返回 0.0
+        if (m_clock_manager->isClockUnknown()) {
+            m_clock_manager->syncToPts(pts);
+        }
+        std::cout << "VideoRenderer: First frame after reset. Force render. PTS: " << pts << std::endl;
+        return 0.0;
+    }
+
     // 处理时钟未同步状态 (例如网络流恢复后的第一帧)
     if (m_clock_manager->isClockUnknown()) {
         // 第一帧即为标准。命令时钟管理器以其 PTS 为基准开始计时。
@@ -194,27 +207,34 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
         m_debug_stats->clock_source_type = static_cast<int>(m_clock_manager->getMasterClockType());
     }
 
-    // 默认阈值 10秒 (如本地文件，允许较大的 Seek 误差)
-    double sync_threshold = 10.0;
+    // 默认阈值 10秒 (本地文件)
+    // 直播流不能容忍大的时间轴断裂，必须收紧阈值
+    double sync_threshold = m_is_live_stream ? 1.0 : 10.0;
 
-    // 检查时钟源类型
-    // 如果是 EXTERNAL（实时性优先），将阈值收紧
-    MasterClockType clockType = m_clock_manager->getMasterClockType();
-    if (clockType == MasterClockType::EXTERNAL) {
-        sync_threshold = 1.0;
-    }
-
-    // 检查延时是否过大 (正向或负向)
-    // 绝对值判断：无论是落后太多还是超前太多
+    // 检查延时是否过大
     if (std::abs(delay) > sync_threshold) {
-        std::cout << "VideoRenderer: Clock diff too large (" << delay
-            << "s > threshold " << sync_threshold << "s). Resyncing." << std::endl;
+        // 获取当前时钟类型
+        MasterClockType currentClockType = m_clock_manager->getMasterClockType();
 
-        // 强制将主时钟拉回当前帧的时间，消除时间差
-        // 避免暂停后画面卡顿、慢放或快进
-        m_clock_manager->syncToPts(pts);
+        // 只有当主时钟不是音频时，视频渲染器才有权强行校准时钟
+        if (currentClockType != MasterClockType::AUDIO) {
+            std::cout << "VideoRenderer: Clock diff too large (" << delay
+                << "s > threshold " << sync_threshold << "s). Resyncing." << std::endl;
 
-        return 0.0; // 立即渲染
+            m_clock_manager->syncToPts(pts);
+            return 0.0; // 立即渲染
+        }
+        else {
+            // 如果主时钟是 AUDIO，且差距巨大：
+            // 1. 若 delay > 0 (视频超前): 不改音频时钟。让逻辑继续往下走，
+            //    下方的 delay > AV_SYNC_THRESHOLD_MAX，返回最大等待时间。
+            //    视频会“停顿”等待音频追上来。
+            // 2. 若 delay < 0 (视频落后): 让逻辑继续往下走，
+            //    下方的 SYNC_SIGNAL_DROP_FRAME，触发快速丢帧追赶。
+
+            // 仅打印日志，不操作
+            std::cout << "VideoRenderer: Large gap in Audio Mode. Waiting/Dropping..." << std::endl;
+        }
     }
 
     // 视频严重落后，请求丢帧
@@ -222,6 +242,11 @@ double SDLVideoRenderer::calculateSyncDelay(AVFrame* frame) {
         // 返回一个特殊信号，通知调用者丢弃此帧
         std::cout << "VideoRenderer: Lagging significantly (" << delay << "s). Requesting frame drop." << std::endl;
         return SYNC_SIGNAL_DROP_FRAME;
+    }
+
+    // 如果视频帧滞后但未超标，全速渲染，不丢包也不等待
+    if (delay < 0) {
+        return 0.0;
     }
 
     // 在“同步区”内 (微小落后或微小超前)，则认为无需等待，立即显示
@@ -414,4 +439,18 @@ SDL_Rect SDLVideoRenderer::calculateDisplayRect(int windowWidth, int windowHeigh
     }
 
     return displayRect;
+}
+
+void SDLVideoRenderer::setStreamType(bool isLive) { 
+    m_is_live_stream = isLive; 
+}
+
+void SDLVideoRenderer::flush() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    // 重置上一帧 PTS 记录，防止新流的 PTS 与旧流混淆
+    m_frame_last_pts = 0.0;
+    m_frame_last_duration = DEFAULT_FRAME_DURATION;
+    // 标记 reset 状态
+    m_first_frame_after_reset = true;
+    std::cout << "SDLVideoRenderer: Flushed internal state." << std::endl;
 }

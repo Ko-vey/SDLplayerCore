@@ -43,6 +43,8 @@ public:
 	AVRational getTimeBase() const override;
 	AVRational getFrameRate() const override;
 
+	AVCodecID getCodecID() const override;
+
 private:
 	AVCodecContext* m_codecContext = nullptr;
 };
