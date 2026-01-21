@@ -469,7 +469,6 @@ int MediaPlayer::handle_event(const SDL_Event& event) {
         // 响应同步线程的通知，在主线程执行渲染
         if (m_videoRenderer) {
             m_videoRenderer->displayFrame();
-            frame_cnt++;
         }
         break;
 

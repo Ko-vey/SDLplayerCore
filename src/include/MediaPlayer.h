@@ -84,7 +84,6 @@ private:
     int audioStreamIndex = -1;  // 音频流索引
 
     // 其他变量
-    int frame_cnt = 0;         // 帧计数器
     std::atomic<int> m_seek_serial{ 0 }; // 全局序列号，用于播放"代际"隔离
     std::shared_ptr<PlayerDebugStats> m_debugStats; // 调试信息
     std::atomic<bool> m_wait_for_keyframe{ true }; // 标志-是否丢弃非关键帧
@@ -130,7 +129,6 @@ public:
     MediaPlayer& operator=(const MediaPlayer& rhs) = delete;
 
     int runMainLoop();      // 主循环启动函数
-    int get_frame_cnt() const { return frame_cnt; };
 
 private:
     // 线程入口函数
