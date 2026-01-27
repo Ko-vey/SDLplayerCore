@@ -10,76 +10,83 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # 3. 定义可执行文件名
 set(EXECUTABLE_NAME "SDLPlayer")
 
-# 4. 搜集自己的所有源文件
-# glob_recursive会递归地查找所有匹配的文件，方便管理
+# 4. 搜集源文件
+# 注意: 如果添加新文件后编译报错，请尝试重新运行 CMake 配置
 file(GLOB_RECURSE PLAYER_SOURCES
     "src/source/*.cpp"
     "src/include/*.h"
 )
 
-# 5. --- 配置SDL2依赖 ---
-# 定义SDL2库的路径
-set(SDL2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sdl2/include)
-set(SDL2_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sdl2/lib)
+# 5. 配置依赖库路径 (手动模式)
+set(SDL2_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sdl2")
+set(FFMPEG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg")
 
-# 找到SDL2的主库和main库
-find_library(SDL2_LIBRARY NAMES SDL2 SDL2.lib PATHS ${SDL2_LIBRARY_DIR})
-find_library(SDL2_MAIN_LIBRARY NAMES SDL2main SDL2main.lib PATHS ${SDL2_LIBRARY_DIR})
+# --- SDL2 配置 ---
+set(SDL2_INCLUDE_DIR "${SDL2_ROOT}/include")
+set(SDL2_LIBRARY_DIR "${SDL2_ROOT}/lib")
 
-# 6. --- 配置FFmpeg依赖 ---
-# 定义FFmpeg库的路径
-set(FFMPEG_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/include)
-set(FFMPEG_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/lib)
+# 查找 SDL2 核心库
+find_library(SDL2_LIBRARY NAMES SDL2 SDL2.lib PATHS ${SDL2_LIBRARY_DIR} NO_DEFAULT_PATH)
+find_library(SDL2_MAIN_LIBRARY NAMES SDL2main SDL2main.lib PATHS ${SDL2_LIBRARY_DIR} NO_DEFAULT_PATH)
+# 查找 SDL2_ttf 库
+find_library(SDL2_TTF_LIBRARY NAMES SDL2_ttf SDL2_ttf.lib PATHS ${SDL2_LIBRARY_DIR} NO_DEFAULT_PATH)
 
-# 定义需要链接的FFmpeg库列表（注意：只写名字，不带.lib后缀）
-set(FFMPEG_LIBRARIES avcodec avformat avutil swscale swresample avfilter)
+# --- FFmpeg 配置 ---
+set(FFMPEG_INCLUDE_DIR "${FFMPEG_ROOT}/include")
+set(FFMPEG_LIBRARY_DIR "${FFMPEG_ROOT}/lib")
+# 定义需要链接的FFmpeg库组件
+set(FFMPEG_LIBRARIES_NAMES avcodec avformat avutil swscale swresample avfilter)
+set(FFMPEG_LIBRARIES "")
+foreach(LIB_NAME ${FFMPEG_LIBRARIES_NAMES})
+    find_library(FF_LIB_${LIB_NAME} NAMES ${LIB_NAME} ${LIB_NAME}.lib PATHS ${FFMPEG_LIBRARY_DIR} NO_DEFAULT_PATH)
+    if(FF_LIB_${LIB_NAME})
+        list(APPEND FFMPEG_LIBRARIES ${FF_LIB_${LIB_NAME}})
+    else()
+        message(WARNING "FFmpeg library not found: ${LIB_NAME}")
+    endif()
+endforeach()
 
-# 7. 创建可执行目标
+# 6. 创建目标与链接
 add_executable(${EXECUTABLE_NAME} ${PLAYER_SOURCES})
 
-# 8. --- 链接依赖 ---
-# 为可执行文件添加头文件搜索路径
+# 添加头文件路径
 target_include_directories(${EXECUTABLE_NAME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/include  # 自己的头文件
-    ${SDL2_INCLUDE_DIR}                      # SDL2的头文件
-    ${FFMPEG_INCLUDE_DIR}                    # FFmpeg的头文件
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/include"
+    "${SDL2_INCLUDE_DIR}"
+    "${FFMPEG_INCLUDE_DIR}"
 )
 
-# 为可执行文件指定链接库的搜索路径
-target_link_directories(${EXECUTABLE_NAME} PUBLIC
-    ${SDL2_LIBRARY_DIR}
-    ${FFMPEG_LIBRARY_DIR}
-)
-
-# 将所有库链接到可执行文件
+# 链接库文件
 target_link_libraries(${EXECUTABLE_NAME} PRIVATE
-    ${SDL2_LIBRARY}
     ${SDL2_MAIN_LIBRARY}
+    ${SDL2_LIBRARY}
+    ${SDL2_TTF_LIBRARY}  # 链接 TTF 库
     ${FFMPEG_LIBRARIES}
 )
 
-# 9. --- 【关键步骤】构建后自动复制DLL文件 ---
-# 这个命令会在成功构建可执行文件后，将所有需要的DLL复制到exe旁边
-# 这样就可以直接在build目录下运行或调试程序了
-message(STATUS "Configuring post-build DLL copy...")
+# 7. 构建后自动复制 DLL
+message(STATUS "Configuring post-build DLL copy for Windows...")
 
-# 定义DLL源目录
-set(SDL2_DLL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sdl2/bin)
-set(FFMPEG_DLL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/bin)
+if(WIN32)
+    # 定义DLL源目录
+    set(SDL2_BIN_DIR "${SDL2_ROOT}/bin")
+    set(FFMPEG_BIN_DIR "${FFMPEG_ROOT}/bin")
 
-# 获取所有DLL文件的列表
-file(GLOB FFMPEG_DLLS "${FFMPEG_DLL_DIR}/*.dll")
-file(GLOB SDL2_DLLS "${SDL2_DLL_DIR}/*.dll")
+    # 获取所有DLL
+    file(GLOB ALL_DLLS 
+        "${SDL2_BIN_DIR}/*.dll" 
+        "${FFMPEG_BIN_DIR}/*.dll"
+    )
 
-# 添加自定义命令
-add_custom_command(
-    TARGET ${EXECUTABLE_NAME}
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${FFMPEG_DLLS}
-    $<TARGET_FILE_DIR:${EXECUTABLE_NAME}>
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${SDL2_DLLS}
-    $<TARGET_FILE_DIR:${EXECUTABLE_NAME}>
-    COMMENT "Copying required DLLs to output directory..."
-)
+    # 只有当找到DLL时才添加命令，防止报错
+    if(ALL_DLLS)
+        add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${ALL_DLLS}
+            $<TARGET_FILE_DIR:${EXECUTABLE_NAME}>
+            COMMENT "✅ Auto-copying DLLs to executable directory..."
+        )
+    else()
+        message(WARNING "⚠️  No DLLs found in third_party/bin folders. You might need to copy them manually or check paths.")
+    endif()
+endif()
