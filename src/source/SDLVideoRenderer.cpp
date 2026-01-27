@@ -103,8 +103,8 @@ bool SDLVideoRenderer::init(const char* windowTitle, int width, int height,
 
     // 初始化 OSD
     m_osd_layer = std::make_unique<OSDLayer>();
-    // 注意：这里的字体路径可能需要根据实际情况调整
-    if (!m_osd_layer->init("C:/Windows/Fonts/arial.ttf")) {
+    /// 注意：这里的字体路径可能需要根据实际情况调整
+    if (!m_osd_layer->init("../docs/assets/fonts/arial.ttf")) {
         std::cerr << "Warning: Failed to init OSD font." << std::endl;
     }
 
