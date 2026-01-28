@@ -68,13 +68,17 @@ The image below demonstrates video playback, window resizing, and pause/resume f
 
 ## Architecture Overview
 
-This project adopts a multi-threaded "Producer-Consumer" model, decoupling the playback process into 5 core threads and 1 control thread. They exchange data via thread-safe buffer queues.
+This project adopts a classic multi-threaded "Producer-Consumer" architecture, decoupling the playback process into 1 main thread, 5 worker threads and 1 control thread. They exchange data via thread-safe buffer queues.
 
 > **Design Details**
-> If you want to dive deeper into the technical details (e.g., A/V sync),
+> If you want to learn more about the technical details of `SDLplayerCore` (e.g., A/V sync),
 > please refer to the **[Design Document (DESIGN.md)](../docs/DESIGN.md)**.
 
+The basic architecture and data flow diagram of `SDLplayerCore` are shown below:
+
 ![Data Flow and Basic Architecture](../docs/assets/flow-basic-architecture.svg)
+
+In this project, we use a finite state machine to organize state transitions, as shown in the following pattern:
 
 ![Finite State Machine](../docs/assets/finite_state_machine.svg)
 
@@ -148,7 +152,7 @@ Before compiling and running, ensure your environment meets the following requir
           ├── lib/      (contains all .lib/.pdb files)
           └── bin/      (contains all .dll files)
           ```
-        > **Note**: The debug overlay requires the `SDL_ttf` plugin. Please ensure the program can locate the `docs/assets/fonts/arial.ttf` file (adjustable  in `src/source/SDLVideoRenderer.cpp`).
+        > **Note**: The debug overlay requires the `SDL_ttf` plugin. Please ensure that your system has the font file `docs/assets/fonts/arial.ttf` (adjustable in `src/source/SDLVideoRenderer.cpp`. We also provide an alternative file `third_party/fonts/arial.ttf`).
 
     2. **FFmpeg 7**
         - Download the **shared** version (`libffmpeg_7.0_msvc17_x64.zip`) from [FFmpeg Windows Builds](https://github.com/ShiftMediaProject/FFmpeg/releases/tag/7.0).

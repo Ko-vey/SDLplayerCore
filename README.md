@@ -68,13 +68,17 @@
 
 ## 架构概览
 
-本项目采用多线程“生产者-消费者”模型，将播放流程解耦为5个核心线程、1个控制线程，它们之间通过线程安全的缓存队列进行数据交换。
+本播放器项目采用了经典的多线程“生产者-消费者”模型架构，将播放流程解耦为1个主线程、5个工作子线程、1个控制子线程，它们之间通过线程安全的缓存队列进行数据交换。
 
-> **关于设计与实现**
+> **设计细节**
 > 如果你想要深入了解本播放器的技术细节（如音画同步等），
 > 请参阅 **[设计文档 (DESIGN.md)](docs/DESIGN.md)**。
 
+`SDLplayerCore` 的基本架构和数据流示意图如下：
+
 ![数据流与基本架构](docs/assets/flow-basic-architecture.svg)
+
+在本项目中，我们通过有限状态机来组织状态流转，具体模式如下：
 
 ![状态流转模式](docs/assets/finite_state_machine.svg)
 
@@ -148,7 +152,7 @@
           ├── lib/      (存放所有 .lib/.pdb 文件)
           └── bin/      (存放所有 .dll 文件)
           ```
-        > 注意: 调试信息层需要 `SDL_ttf` 插件来显示字体。请确保程序能够对应项目文件中的 `docs/assets/fonts/arial.ttf` 文件（可在`src/source/SDLVideoRenderer.cpp`中调整）。
+        > 注意: 调试信息层需要 `SDL_ttf` 插件来显示字体。请确保你的系统中有 `C:/Windows/Fonts/arial.ttf` 这个字体文件（可在`src/source/SDLVideoRenderer.cpp` 中调整。本项目也提供备用文件 `third_party/fonts/arial.ttf`）。
 
     2. **FFmpeg 7**
         - 从 [FFmpeg 官网推荐的 Windows Builds](https://github.com/ShiftMediaProject/FFmpeg/releases/tag/7.0) 下载 shared 版本的库 (`libffmpeg_7.0_msvc17_x64.zip`)。
