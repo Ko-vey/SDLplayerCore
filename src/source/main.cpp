@@ -1,5 +1,5 @@
 ﻿/*
- * SDLplayerCore - An audio/video player core.
+ * SDLplayerCore - An audio and video player.
  * Copyright (C) 2025 Kovey <zzwaaa0396@qq.com>
  *
  * This file is part of SDLplayerCore.
