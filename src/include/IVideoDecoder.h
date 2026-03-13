@@ -25,9 +25,12 @@
 struct AVCodecParameters;	// 编解码器参数结构体
 struct AVPacket;			// 数据包结构体
 struct AVFrame;				// 数据帧结构体
-enum AVPixelFormat;			// 像素格式枚举，用于getPixelFormat()
-enum AVCodecID;				// 编解码器ID
 struct AVRational;			// FFmpeg中用于表示有理数的结构（如时间基准、帧率）
+
+extern "C" {
+#include <libavutil/avutil.h>       // 包含 AVPixelFormat
+#include <libavcodec/avcodec.h>     // 包含 AVCodecID
+}
 
 class IVideoDecoder {
 public:

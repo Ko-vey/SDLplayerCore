@@ -26,7 +26,10 @@
 #include "PlayerDebugStats.h"
 
 struct AVFrame;		// 数据帧结构体（包含解码后的视频数据）
-enum AVPixelFormat;	// 像素格式枚举
+
+extern "C" {
+#include <libavutil/avutil.h>       // 包含 AVPixelFormat
+}
 
 // 默认帧持续时间（秒），对应25fps，用于无duration信息的帧
 constexpr double DEFAULT_FRAME_DURATION = 0.04;

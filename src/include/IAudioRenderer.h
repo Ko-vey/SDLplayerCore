@@ -26,7 +26,11 @@
 
 struct AVFrame;
 struct AVRational;
-enum AVSampleFormat;
+
+extern "C" {
+#include <libavutil/avutil.h> // °üº¬ AVSampleFormat
+#include <libavutil/samplefmt.h>
+}
 
 class IAudioRenderer {
 public:

@@ -92,7 +92,7 @@ bool PacketQueue::push(AVPacket* packet, int serial) {
 	}
 
 	// 将新包入队并更新统计
-	queue.push({ pkt_clone, serial });
+	queue.push(PacketData{ pkt_clone, serial });
 	m_total_bytes += pkt_clone->size;
 
 	lock.unlock();

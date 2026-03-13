@@ -1,0 +1,39 @@
+name: C++ CI Pipeline
+
+# 1. 触发条件
+on:
+  push:
+    branches: [ "main" ]  # 当有人推送代码到 main 分支时
+  pull_request:
+    branches: [ "main" ]  # 当有人提 PR 想合并到 main 分支时
+
+# 2. 任务列表
+jobs:
+  build:
+    # 指定云端电脑的操作系统：这里选最新版的 Ubuntu
+    runs-on: ubuntu-latest 
+
+    # 具体的操作步骤
+    steps:
+    - name: 检出代码 (Checkout code)
+      uses: actions/checkout@v4  # 官方插件，作用是把项目代码下载到这台云端电脑上
+
+    - name: 安装依赖 (Install Dependencies)
+      # 项目依赖 FFmpeg 和 SDL2，告诉 Ubuntu 安装它们
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+        # 修复2：补充安装 libsdl2-ttf-dev
+        sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev
+        sudo apt-get install -y libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libswscale-dev libswresample-dev
+        
+    - name: 创建构建目录 (Create Build Directory)
+      run: mkdir build  # 相当于在本地新建 build 文件夹
+
+    - name: 运行 CMake (Configure CMake)
+      working-directory: ${{github.workspace}}/build
+      run: cmake ..     # 告诉 CMake 项目的 CMakeLists.txt 在上一层目录
+
+    - name: 编译项目 (Build Project)
+      working-directory: ${{github.workspace}}/build
+      run: make -j4     # 使用 4 个线程进行编译

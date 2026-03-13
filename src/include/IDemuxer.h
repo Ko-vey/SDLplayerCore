@@ -24,7 +24,10 @@ struct AVFormatContext;
 struct AVPacket;
 struct AVCodecParameters;
 struct AVRational;
-enum AVMediaType;	// enum
+
+extern "C" {
+#include <libavutil/avutil.h>       // °üº¬ AVMediaType
+}
 
 class IDemuxer {
 public:

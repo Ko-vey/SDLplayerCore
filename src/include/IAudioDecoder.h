@@ -25,8 +25,12 @@
 struct AVCodecParameters;	// 编解码器参数结构体
 struct AVPacket;			// 数据包结构体
 struct AVFrame;				// 数据帧结构体
-enum AVSampleFormat;		// 采样格式枚举
 struct AVRational;			// 有理数结构体（用于时间基准）
+
+extern "C" {
+#include <libavutil/avutil.h>       // 包含 AVSampleFormat
+#include <libavutil/samplefmt.h>    // 引入音频采样格式定义
+}
 
 class IAudioDecoder {
 public:
